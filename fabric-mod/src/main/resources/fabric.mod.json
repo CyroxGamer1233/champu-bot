@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "champu_bot",
+  "version": "${version}",
+  "name": "Champu Bot",
+  "description": "A Minecraft AI NPC powered by a local Python and Ollama service.",
+  "authors": ["Champu Bot contributors"],
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": { "main": ["com.champubot.ChampuBotMod"] },
+  "depends": { "fabricloader": ">=0.16.5", "minecraft": "~1.21.1", "java": ">=21", "fabric-api": "*" }
+}
+
