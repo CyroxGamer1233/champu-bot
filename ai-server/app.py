@@ -1,48 +1,138 @@
+import json
 import os
-from typing import List, Literal
+import sqlite3
+from pathlib import Path
+from typing import Any
+
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-app = FastAPI(title="Champu Bot AI", version="0.1.0")
+APP_DIR = Path(__file__).resolve().parent
+DB_PATH = Path(os.getenv("CHAMPU_MEMORY_DB", str(APP_DIR / "champu_memory.sqlite3")))
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
+CLOUD_BASE_URL = os.getenv("CLOUD_BASE_URL", "https://api.openai.com/v1")
+CLOUD_MODEL = os.getenv("CLOUD_MODEL", "gpt-4o-mini")
+CLOUD_API_KEY = os.getenv("CLOUD_API_KEY", "")
+AI_MODE = os.getenv("AI_MODE", "hybrid").lower()
+MAX_MEMORY = int(os.getenv("MAX_MEMORY", "16"))
 
-class ChatMessage(BaseModel):
-    role: Literal["user", "assistant"]
-    content: str = Field(min_length=1, max_length=2000)
+app = FastAPI(title="Champu AI Brain", version="0.2.0")
+
+
+def db():
+    connection = sqlite3.connect(DB_PATH)
+    connection.execute("CREATE TABLE IF NOT EXISTS memories (id INTEGER PRIMARY KEY AUTOINCREMENT, player TEXT NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)")
+    return connection
+
 
 class ChatRequest(BaseModel):
     player: str = Field(default="Player", max_length=32)
-    message: str = Field(min_length=1, max_length=2000)
-    history: List[ChatMessage] = Field(default_factory=list, max_length=12)
+    message: str = Field(min_length=1, max_length=1200)
+    world: dict[str, Any] = Field(default_factory=dict)
+    remember: bool = True
 
-class ChatResponse(BaseModel):
-    reply: str
-    model: str
-    fallback: bool = False
+
+class ThinkRequest(BaseModel):
+    player: str = Field(default="Champu", max_length=32)
+    world: dict[str, Any] = Field(default_factory=dict)
+
+
+def get_memory(player: str):
+    with db() as connection:
+        rows = connection.execute("SELECT role, content FROM memories WHERE player=? ORDER BY id DESC LIMIT ?", (player, MAX_MEMORY)).fetchall()
+    return [{"role": role, "content": content} for role, content in reversed(rows)]
+
+
+def save_memory(player: str, role: str, content: str):
+    with db() as connection:
+        connection.execute("INSERT INTO memories(player, role, content) VALUES(?,?,?)", (player, role, content[:2000]))
+        connection.execute("DELETE FROM memories WHERE player=? AND id NOT IN (SELECT id FROM memories WHERE player=? ORDER BY id DESC LIMIT ?)", (player, player, MAX_MEMORY * 4))
+
+
+def system_prompt(world: dict[str, Any]):
+    safe_world = json.dumps(world, ensure_ascii=False)[:3500]
+    return (
+        "You are Champu, a friendly, curious Minecraft companion. Speak naturally and briefly; "
+        "Hindi/Hinglish is welcome when the player uses it. You are an AI inside Minecraft, not a human. "
+        "Use the supplied world snapshot for truthful awareness. Never claim an action is complete unless "
+        "the game reports it. Do not destroy blocks, attack players, enter lava, or spend items. "
+        "If the player clearly requests movement, return one action from follow, come, stop, look, none. "
+        "Return ONLY JSON with keys reply (string) and action (object with key type). "
+        "World snapshot: " + safe_world
+    )
+
+
+async def ask_ollama(messages):
+    async with httpx.AsyncClient(timeout=60) as client:
+        response = await client.post(f"{OLLAMA_URL}/api/chat", json={"model": OLLAMA_MODEL, "messages": messages, "stream": False, "format": "json", "options": {"temperature": 0.6}})
+        response.raise_for_status()
+        return response.json()["message"]["content"], f"ollama:{OLLAMA_MODEL}"
+
+
+async def ask_cloud(messages):
+    if not CLOUD_API_KEY:
+        raise RuntimeError("CLOUD_API_KEY is not configured")
+    async with httpx.AsyncClient(timeout=60) as client:
+        response = await client.post(f"{CLOUD_BASE_URL.rstrip('/')}/chat/completions", headers={"Authorization": f"Bearer {CLOUD_API_KEY}"}, json={"model": CLOUD_MODEL, "messages": messages, "temperature": 0.6, "response_format": {"type": "json_object"}})
+        response.raise_for_status()
+        return response.json()["choices"][0]["message"]["content"], f"cloud:{CLOUD_MODEL}"
+
+
+async def generate(messages):
+    errors = []
+    providers = [ask_ollama, ask_cloud] if AI_MODE == "hybrid" else ([ask_cloud] if AI_MODE == "cloud" else [ask_ollama])
+    for provider in providers:
+        try:
+            return await provider(messages)
+        except Exception as error:
+            errors.append(str(error))
+    raise HTTPException(status_code=503, detail="All configured AI providers are unavailable: " + "; ".join(errors))
+
+
+def parse_result(raw: str):
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        data = {"reply": raw, "action": {"type": "none"}}
+    action_type = (data.get("action") or {}).get("type", "none")
+    if action_type not in {"follow", "come", "stop", "look", "none"}:
+        action_type = "none"
+    return {"reply": str(data.get("reply", "Hmm, mujhe samajh nahi aaya."))[:500], "action": {"type": action_type}}
+
 
 @app.get("/health")
 async def health():
-    return {"ok": True, "model": OLLAMA_MODEL}
+    return {"ok": True, "mode": AI_MODE, "local_model": OLLAMA_MODEL, "cloud_configured": bool(CLOUD_API_KEY), "memory": "sqlite"}
 
-@app.post("/chat", response_model=ChatResponse)
+
+@app.post("/chat")
 async def chat(request: ChatRequest):
-    messages = [{"role": "system", "content": "You are Champu, a helpful Minecraft NPC. Reply briefly and warmly in plain text. Never claim an action happened unless the game confirms it."}]
-    messages.extend({"role": item.role, "content": item.content} for item in request.history)
-    messages.append({"role": "user", "content": f"{request.player}: {request.message}"})
-    try:
-        async with httpx.AsyncClient(timeout=45) as client:
-            response = await client.post(f"{OLLAMA_URL}/api/chat", json={"model": OLLAMA_MODEL, "messages": messages, "stream": False})
-            response.raise_for_status()
-            reply = response.json().get("message", {}).get("content", "").strip()
-        if reply:
-            return ChatResponse(reply=reply, model=OLLAMA_MODEL)
-    except (httpx.HTTPError, ValueError):
-        pass
-    return ChatResponse(reply="Mera AI abhi offline hai. Ollama start karke phir try karo!", model=OLLAMA_MODEL, fallback=True)
+    messages = [{"role": "system", "content": system_prompt(request.world)}]
+    messages.extend(get_memory(request.player))
+    messages.append({"role": "user", "content": request.message})
+    raw, provider = await generate(messages)
+    result = parse_result(raw)
+    if request.remember:
+        save_memory(request.player, "user", request.message)
+        save_memory(request.player, "assistant", result["reply"])
+    result["model"] = provider
+    return result
+
+
+@app.post("/think")
+async def think(request: ThinkRequest):
+    messages = [
+        {"role": "system", "content": system_prompt(request.world) + " Idle mode: choose none unless a safe, immediately useful companion action is obvious."},
+        {"role": "user", "content": "Review the current world snapshot. Should you do anything?"},
+    ]
+    raw, provider = await generate(messages)
+    result = parse_result(raw)
+    result["model"] = provider
+    return result
+
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
-
+    uvicorn.run(app, host=os.getenv("AI_HOST", "127.0.0.1"), port=int(os.getenv("AI_PORT", "8000")))
