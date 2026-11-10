@@ -16,7 +16,7 @@ const viewerPort = Number(env('VIEWER_PORT', '3007'));
 const ownerName = env('OWNER_NAME');
 const autonomous = env('AUTONOMOUS_MODE', 'true').toLowerCase() === 'true';
 const thinkInterval = Math.max(30000, Number(env('THINK_INTERVAL_MS', '60000')));
-const allowedActions = new Set(['follow', 'come', 'stop', 'look', 'none']);
+const allowedActions = new Set(['follow', 'come', 'stop', 'look', 'wander', 'jump', 'none']);
 
 let bot;
 let thinkTimer;
@@ -115,17 +115,35 @@ function come(sender) {
 function stop(sender) {
   if (!isOwner(sender)) return say('Only my owner can stop my movement.');
   bot.pathfinder.setGoal(null);
+  bot.clearControlStates();
   say('Stopped. I will stay here.');
+}
+
+function wander(sender) {
+  if (!isOwner(sender)) return say('Movement commands are owner-only.');
+  if (!bot?.entity) return;
+  const origin = bot.entity.position;
+  const x = Math.round(origin.x + (Math.random() * 14 - 7));
+  const z = Math.round(origin.z + (Math.random() * 14 - 7));
+  setNavigation(new goals.GoalNear(x, origin.y, z, 2));
+}
+
+async function jump(sender) {
+  if (!isOwner(sender)) return;
+  bot.setControlState('jump', true);
+  setTimeout(() => bot?.entity && bot.setControlState('jump', false), 650);
 }
 
 async function applyAction(action, sender, autonomousCall = false) {
   const type = action?.type;
   if (!allowedActions.has(type) || type === 'none') return;
-  if (autonomousCall && !['follow', 'look'].includes(type)) return;
+  if (autonomousCall && !['follow', 'look', 'wander', 'jump'].includes(type)) return;
   if (!autonomousCall && !isOwner(sender)) return;
   if (type === 'follow') return follow(sender || ownerName);
   if (type === 'come') return come(sender || ownerName);
   if (type === 'stop') return stop(sender || ownerName);
+  if (type === 'wander') return wander(sender || ownerName);
+  if (type === 'jump') return jump(sender || ownerName);
   if (type === 'look') {
     const target = bot.players[sender || ownerName]?.entity;
     if (target) await bot.lookAt(target.position.offset(0, 1.4, 0), true);
@@ -197,7 +215,7 @@ function createBot() {
   bot.once('spawn', () => {
     console.log('Champu joined ' + host + ':' + port + ' as ' + username);
     startViewer();
-    say('Champu AI online! !champu <message> | !follow | !come | !stop | !status');
+    say('Champu AI online! !champu <message> | !follow | !come | !stop | !wander | !jump | !status');
     if (thinkTimer) clearInterval(thinkTimer);
     if (heartbeatTimer) clearInterval(heartbeatTimer);
     heartbeatTimer = setInterval(sendHeartbeat, 5000);
@@ -210,6 +228,8 @@ function createBot() {
     if (command === '!come') return come(sender);
     if (command === '!stop') return stop(sender);
     if (command === '!follow') return follow(sender);
+    if (command === '!wander') return wander(sender);
+    if (command === '!jump') return jump(sender);
     if (command === '!status') {
       const state = snapshot();
       return say('HP ' + state.health + ', food ' + state.food + ', at ' +
