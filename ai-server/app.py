@@ -86,7 +86,7 @@ async def home():
 async def health():
     p=await providers()
     ready=(p["cloud"]=="configured") if MODE=="cloud" else (p["ollama"]=="reachable") if MODE=="local" else (p["ollama"]=="reachable" or p["cloud"]=="configured")
-    return {"ok":True,"ai_ready":ready,"mode":MODE,"local_model":LOCAL_MODEL,"cloud_model":CLOUD_MODEL,"providers":p,"memory":"sqlite","minecraft_connected":False,"version":"1.0.0"}
+    return {"ok":True,"ai_ready":ready,"mode":MODE,"local_model":LOCAL_MODEL,"cloud_model":CLOUD_MODEL,"providers":p,"memory":"sqlite","minecraft_connected":minecraft_status()["running"],"minecraft":minecraft_status(),"version":"1.1.0"}
 @app.get("/memory")
 async def memory(player:str=Query(default="Owner",min_length=1,max_length=32),limit:int=Query(default=50,ge=1,le=100)):
     with db() as c: rows=c.execute("SELECT role,content,created_at FROM memories WHERE player=? ORDER BY id DESC LIMIT ?",(player,limit)).fetchall()
@@ -101,6 +101,98 @@ async def chat(req:Chat):
 async def think(req:Think):
     raw,model=await generate([{"role":"system","content":prompt(req.world)+" Idle reflection: choose none unless a safe useful action is clearly justified."},{"role":"user","content":"Reflect on the supplied state."}])
     result=parse(raw);result["model"]=model;return result
+
+# Minecraft client lifecycle. Keep the dashboard bound to localhost or protect it
+# before exposing it to the internet.
+MINECRAFT_DIR = ROOT.parent / "player-bot"
+minecraft_process = None
+minecraft_config = {}
+minecraft_logs = []
+
+class MinecraftConnect(BaseModel):
+    host: str = Field(min_length=1, max_length=255)
+    port: int = Field(default=25565, ge=1, le=65535)
+    username: str = Field(default="ChampuBot", min_length=1, max_length=32)
+    auth: str = Field(default="offline", pattern="^(offline|microsoft)$")
+    version: str = Field(default="1.21.1", min_length=1, max_length=32)
+    owner_name: str = Field(default="", max_length=32)
+
+def minecraft_status():
+    global minecraft_process
+    if minecraft_process is not None and minecraft_process.poll() is not None:
+        minecraft_process = None
+    return {
+        "connected": minecraft_process is not None,
+        "running": minecraft_process is not None,
+        "config": minecraft_config,
+        "logs": minecraft_logs[-40:],
+    }
+
+def collect_minecraft_logs(process):
+    for line in iter(process.stdout.readline, ""):
+        minecraft_logs.append(line.rstrip()[-1000:])
+        del minecraft_logs[:-100:]
+    process.stdout.close()
+
+@app.get("/minecraft/status")
+async def minecraft_status_endpoint():
+    return minecraft_status()
+
+@app.get("/minecraft/logs")
+async def minecraft_logs_endpoint():
+    return {"logs": minecraft_logs[-100:]}
+
+@app.post("/minecraft/connect")
+async def minecraft_connect(request: MinecraftConnect):
+    global minecraft_process, minecraft_config
+    if minecraft_process is not None and minecraft_process.poll() is None:
+        raise HTTPException(409, "Champu is already running. Stop it before reconnecting.")
+    if any(char in request.host for char in "\r\n") or any(char in request.username for char in "\r\n"):
+        raise HTTPException(400, "Invalid connection values.")
+    if not (MINECRAFT_DIR / "index.js").is_file():
+        raise HTTPException(500, "player-bot/index.js is missing.")
+    env = os.environ.copy()
+    env.update({
+        "MC_HOST": request.host,
+        "MC_PORT": str(request.port),
+        "MC_USERNAME": request.username,
+        "MC_AUTH": request.auth,
+        "MC_VERSION": request.version,
+        "OWNER_NAME": request.owner_name,
+        "AI_URL": env.get("AI_URL", "http://127.0.0.1:8000/chat"),
+        "THINK_URL": env.get("THINK_URL", "http://127.0.0.1:8000/think"),
+    })
+    try:
+        minecraft_process = __import__("subprocess").Popen(
+            ["node", "index.js"],
+            cwd=MINECRAFT_DIR,
+            env=env,
+            stdout=__import__("subprocess").PIPE,
+            stderr=__import__("subprocess").STDOUT,
+            text=True,
+            bufsize=1,
+        )
+    except OSError as error:
+        raise HTTPException(503, "Could not start Node.js: " + str(error))
+    minecraft_config = request.model_dump()
+    minecraft_logs.clear()
+    import threading
+    threading.Thread(target=collect_minecraft_logs, args=(minecraft_process,), daemon=True).start()
+    return minecraft_status()
+
+@app.post("/minecraft/disconnect")
+async def minecraft_disconnect():
+    global minecraft_process
+    if minecraft_process is not None and minecraft_process.poll() is None:
+        minecraft_process.terminate()
+        try:
+            minecraft_process.wait(timeout=8)
+        except __import__("subprocess").TimeoutExpired:
+            minecraft_process.kill()
+    minecraft_process = None
+    return minecraft_status()
+
+
 if __name__=="__main__":
     import uvicorn
     uvicorn.run(app,host=os.getenv("AI_HOST","127.0.0.1"),port=int(os.getenv("AI_PORT","8000")))
