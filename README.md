@@ -10,12 +10,13 @@ Champu is a Minecraft companion project with a Python AI brain and a game-client
 - **World awareness:** The Java client sends position, health, food, dimension, time/weather, nearby players and nearby entities to the AI.
 - **Actions:** Owner-gated follow, come, stop and look actions. Pathfinding is configured not to dig blocks or build towers.
 - **Autonomy:** Optional periodic idle-think loop. It is deliberately restricted to low-risk companion actions.
+- **Web dashboard:** Standalone browser chat, service status and recent memory viewer. It works while Champu is disconnected from Minecraft.
 
 **Bedrock / MCPE:** The current player adapter uses Mineflayer and therefore connects to Java-compatible servers, not directly to a native Bedrock LAN world. The AI API is edition-neutral, but a native Bedrock protocol/gameplay adapter is a separate implementation and is not included in this release. Do not treat Bedrock support as complete yet.
 
 This is an autonomous companion prototype, not human-level AGI. Keep it on a private/test world until you have tested it.
 
-## 1. AI brain setup
+## 1. AI brain and website setup
 
 Python 3.10+ recommended.
 
@@ -42,6 +43,12 @@ $env:CLOUD_API_KEY="YOUR_API_KEY"
 $env:CLOUD_MODEL="gpt-4o-mini"
 python app.py
 ```
+
+Open **http://127.0.0.1:8000** in your browser to use the Champu dashboard. It includes:
+- Live Hindi/Hinglish chat with persistent SQLite memory.
+- AI service and provider status.
+- Recent saved conversation memory.
+- Browser microphone dictation and browser text-to-speech where supported. These use the browser's available speech services; custom voice cloning / a self-evolving voice is not implemented yet.
 
 Hybrid mode tries local Ollama first and falls back to the cloud provider if local inference fails. If you do not configure a cloud key, Champu continues to use Ollama and reports an unavailable AI service if Ollama is also offline. Never commit API keys to GitHub.
 
