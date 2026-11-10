@@ -52,7 +52,11 @@ def prompt(world):
 async def ollama(messages):
     async with httpx.AsyncClient(timeout=httpx.Timeout(75,connect=8)) as c:
         r=await c.post(OLLAMA+"/api/chat",json={"model":LOCAL_MODEL,"messages":messages,"stream":False,"format":"json","options":{"temperature":0.65}})
-        r.raise_for_status(); return r.json()["message"]["content"],"ollama:"+LOCAL_MODEL
+        if r.status_code >= 400:
+            detail = r.text[:400].replace("\\n", " ")
+            raise RuntimeError(f"Ollama HTTP {r.status_code}: {detail}")
+        body = r.json()
+        return body["message"]["content"],"ollama:"+LOCAL_MODEL
 async def cloud(messages):
     if not API_KEY: raise RuntimeError("Cloud API key is not configured")
     async with httpx.AsyncClient(timeout=httpx.Timeout(75,connect=8)) as c:
@@ -77,26 +81,42 @@ def parse(raw):
     fence = chr(96) * 3
     if text.startswith(fence):
         text = text.replace(fence + "json", "", 1).replace(fence, "", 1).strip()
+    data = None
     try:
         data = json.loads(text)
     except Exception:
-        data = {"reply": text, "action": {"type": "none"}}
+        # Some small models add a sentence before/after the JSON object.
+        start, end = text.find("{"), text.rfind("}")
+        if start >= 0 and end > start:
+            try:
+                data = json.loads(text[start:end + 1])
+            except Exception:
+                data = None
     if isinstance(data, str):
-        data = {"reply": data, "action": {"type": "none"}}
+        data = {"reply": data}
     if not isinstance(data, dict):
-        data = {}
+        data = {"reply": text}
     reply = data.get("reply") or data.get("message") or data.get("response") or data.get("content")
-    if not reply and "minecraft_connected" in data:
-        reply = "Abhi main Minecraft se connected nahi hoon. Join Bot button se server connect karo."
-    if not reply:
-        reply = text
-    if isinstance(reply, dict):
-        reply = reply.get("text") or reply.get("content") or str(reply)
-    reply = str(reply or "AI ne empty response diya. Ollama model output check karo.").strip()
     action = data.get("action") or {}
+    # Accept both the documented {action:{type}} shape and compact {type,mode} output.
+    if not action and data.get("type") in ACTIONS:
+        action = {"type": data.get("type")}
     action_type = action.get("type", "none") if isinstance(action, dict) else str(action)
     if action_type not in ACTIONS:
         action_type = "none"
+    if isinstance(reply, dict):
+        reply = reply.get("text") or reply.get("content")
+    if not reply and action_type != "none":
+        replies = {
+            "follow": "Theek hai, main tumhare saath chal raha hoon.",
+            "come": "Theek hai, main tumhare paas aa raha hoon.",
+            "stop": "Theek hai, main ruk gaya.",
+            "look": "Theek hai, main dekh raha hoon."
+        }
+        reply = replies.get(action_type)
+    if not reply and "minecraft_connected" in data:
+        reply = "Abhi main Minecraft se connected nahi hoon. Join Bot button se server connect karo."
+    reply = str(reply or "AI ne empty response diya. Ollama model output check karo.").strip()
     return {"reply": reply[:1200], "action": {"type": action_type}}
 @app.get("/")
 async def home():
@@ -122,9 +142,10 @@ async def chat(req:Chat):
     try:
         raw,model=await generate(msgs)
         result=parse(raw)
-    except HTTPException:
-        result={"reply": "Haan bhai, Champu yahan hai. AI provider abhi ready nahi hai, lekin Minecraft connection active hai.", "action": {"type": "none"}}
+    except HTTPException as error:
+        result={"reply": "AI abhi available nahi hai. Dashboard ke AI status aur server logs check karo.", "action": {"type": "none"}}
         model="fallback"
+        result["error"] = error.detail
     if state["running"]:
         bad = ("not connected", "disconnected", "join bot button", "standalone mode")
         if any(phrase in result["reply"].lower() for phrase in bad):
