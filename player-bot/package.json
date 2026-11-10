@@ -11,6 +11,6 @@
     "mineflayer": "^4.27.0",
     "mineflayer-pathfinder": "^2.4.5",
     "vec3": "^0.1.10",
-    "prismarine-viewer": "^1.34.0"
+    "prismarine-viewer": "^1.33.0"
   }
 }
