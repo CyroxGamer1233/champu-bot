@@ -73,7 +73,10 @@ async function sendHeartbeat() {
       health: state.health,
       food: state.food,
       dimension: state.dimension,
-      players: (state.nearbyPlayers || []).map(player => player.name)
+      players: (state.nearbyPlayers || []).map(player => player.name),
+      nearby_entities: state.nearbyEntities || [],
+      time_of_day: state.timeOfDay,
+      weather: state.weather
     }, { timeout: 5000 });
   } catch (error) {
     console.error('Heartbeat failed:', error.message);
