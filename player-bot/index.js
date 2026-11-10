@@ -68,7 +68,7 @@ async function sendHeartbeat() {
   if (!bot?.entity) return;
   try {
     const state = snapshot();
-    await axios.post(heartbeatUrl, {
+    const response = await axios.post(heartbeatUrl, {
       connected: true,
       position: state.position,
       health: state.health,
@@ -79,6 +79,10 @@ async function sendHeartbeat() {
       time_of_day: state.timeOfDay,
       weather: state.weather
     }, { timeout: 5000 });
+    const action = response.data?.action;
+    if (action?.type && action.type !== 'none') {
+      await applyAction(action, ownerName, false);
+    }
   } catch (error) {
     console.error('Heartbeat failed:', error.message);
   }
