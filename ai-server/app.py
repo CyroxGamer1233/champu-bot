@@ -28,6 +28,7 @@ def db():
     DB.parent.mkdir(parents=True,exist_ok=True)
     c=sqlite3.connect(DB,timeout=10)
     c.execute("CREATE TABLE IF NOT EXISTS memories(id INTEGER PRIMARY KEY AUTOINCREMENT,player TEXT NOT NULL,role TEXT NOT NULL,content TEXT NOT NULL,created_at DATETIME DEFAULT CURRENT_TIMESTAMP)")
+    c.execute("CREATE TABLE IF NOT EXISTS teachings(id INTEGER PRIMARY KEY AUTOINCREMENT,player TEXT NOT NULL,instruction TEXT NOT NULL,created_at DATETIME DEFAULT CURRENT_TIMESTAMP)")
     return c
 
 class Chat(BaseModel):
@@ -64,12 +65,22 @@ def detect_action(message):
         return "chop_wood"
     return "none"
 
-def prompt(world):
+def teach(player, instruction):
+    with db() as c:
+        c.execute("INSERT INTO teachings(player,instruction) VALUES(?,?)",(player,instruction[:1000]))
+        c.execute("DELETE FROM teachings WHERE player=? AND id NOT IN (SELECT id FROM teachings WHERE player=? ORDER BY id DESC LIMIT 30)",(player,player))
+
+def learned(player):
+    with db() as c:
+        rows=c.execute("SELECT instruction FROM teachings WHERE player=? ORDER BY id DESC LIMIT 30",(player,)).fetchall()
+    return [row[0] for row in reversed(rows)]
+
+def prompt(world, player="Owner"):
     return ("You are Champu, a Minecraft companion with this personality: "+PERSONALITY+". Reply naturally in Hindi/Hinglish when the user does. "
     "You are an AI, not a human; do not claim consciousness. Use only supplied facts and never invent live game observations. "
     "Standalone mode means Minecraft is disconnected and no action can execute. Never claim an action succeeded without game confirmation. "
     "Allowed action types: follow, come, stop, look, wander, jump, chop_wood, none. Choose a safe useful action only when justified. Return ONLY JSON with keys reply, action:{type}, and goal:{reason,priority}. "
-    "Prefer a short answer (1-2 sentences). When connected, observe the world and choose one safe useful next action even without a user command; prefer look, wander, or jump during idle time. Never invent success. " + "World snapshot: "+json.dumps(world,ensure_ascii=False)[:3500])
+    "Prefer a short answer (1-2 sentences). When connected, observe the world and choose one safe useful next action even without a user command; prefer look, wander, or jump during idle time. Never invent success. " + "Learned teaching rules: "+json.dumps(learned(player),ensure_ascii=False)[:2500]+" World snapshot: "+json.dumps(world,ensure_ascii=False)[:3500])
 async def ollama(messages):
     async with httpx.AsyncClient(timeout=httpx.Timeout(75,connect=8)) as c:
         r=await c.post(OLLAMA+"/api/chat",json={"model":LOCAL_MODEL,"messages":messages,"stream":False,"format":"json","keep_alive":"10m","options":{"temperature":0.55,"num_ctx":2048,"num_predict":MAX_TOKENS}})
@@ -171,7 +182,19 @@ async def chat(req:Chat):
     world = dict(req.world)
     world["minecraft_connected"] = state["running"]
     world["minecraft"] = state["config"] if state["running"] else None
-    msgs=[{"role":"system","content":prompt(world)}]+history(req.player)+[{"role":"user","content":req.message.strip()}]
+    message = req.message.strip()
+    lower = message.lower()
+    if lower.startswith(("teach ", "sikhao ", "remember that ")):
+        instruction = message.split(" ", 1)[1].strip()
+        if instruction:
+            teach(req.player, instruction)
+            result = {"reply": "Samajh gaya, main is rule ko yaad rakhunga.", "action": {"type": "none"}, "goal": {"reason": "", "priority": 1}, "model": "memory"}
+            if req.remember:
+                remember(req.player, "user", message)
+                remember(req.player, "assistant", result["reply"])
+            result.update({"minecraft_connected": state["running"]})
+            return result
+    msgs=[{"role":"system","content":prompt(world, req.player)}]+history(req.player)+[{"role":"user","content":message}]
     try:
         raw,model=await generate(msgs)
         result=parse(raw)
@@ -206,7 +229,7 @@ async def chat(req:Chat):
     result.update({"model":model,"minecraft_connected":state["running"]});return result
 @app.post("/think")
 async def think(req:Think):
-    raw,model=await generate([{"role":"system","content":prompt(req.world)+" Idle reflection: choose none unless a safe useful action is clearly justified."},{"role":"user","content":"Reflect on the supplied state. This is autonomous thinking, not a user command: observe, speak a short thought, and choose a safe action when useful."}])
+    raw,model=await generate([{"role":"system","content":prompt(req.world, req.player)+" Idle reflection: choose none unless a safe useful action is clearly justified."},{"role":"user","content":"Reflect on the supplied state. This is autonomous thinking, not a user command: observe, speak a short thought, and choose a safe action when useful."}])
     result=parse(raw);result["model"]=model;return result
 
 # Minecraft client lifecycle. Keep the dashboard bound to localhost or protect it
