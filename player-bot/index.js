@@ -2,6 +2,8 @@ import mineflayer from 'mineflayer';
 import pathfinderPackage from 'mineflayer-pathfinder';
 const { pathfinder, Movements, goals } = pathfinderPackage;
 import axios from 'axios';
+import prismarineViewerPackage from 'prismarine-viewer';
+const { mineflayer: mineflayerViewer } = prismarineViewerPackage;
 
 const env = (key, fallback = '') => process.env[key] || fallback;
 const host = env('MC_HOST', '127.0.0.1');
@@ -12,6 +14,7 @@ const version = env('MC_VERSION', '1.21.1');
 const aiUrl = env('AI_URL', 'http://127.0.0.1:8000/chat');
 const thinkUrl = env('THINK_URL', aiUrl.replace(/\/chat$/, '/think'));
 const heartbeatUrl = env('HEARTBEAT_URL', aiUrl.replace(/\/chat$/, '/minecraft/heartbeat'));
+const viewerPort = Number(env('VIEWER_PORT', '3007'));
 const ownerName = env('OWNER_NAME');
 const autonomous = env('AUTONOMOUS_MODE', 'true').toLowerCase() === 'true';
 const thinkInterval = Math.max(30000, Number(env('THINK_INTERVAL_MS', '60000')));
@@ -175,6 +178,12 @@ function createBot() {
   bot.loadPlugin(pathfinder);
   bot.once('spawn', () => {
     console.log('Champu joined ' + host + ':' + port + ' as ' + username);
+    try {
+      mineflayerViewer(bot, { port: viewerPort, firstPerson: true, viewDistance: 6 });
+      console.log('Live viewer available on port ' + viewerPort);
+    } catch (error) {
+      console.error('Viewer failed to start:', error.message);
+    }
     say('Champu AI online! !champu <message> | !follow | !come | !stop | !status');
     if (thinkTimer) clearInterval(thinkTimer);
     if (heartbeatTimer) clearInterval(heartbeatTimer);
