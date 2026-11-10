@@ -215,10 +215,11 @@ function createBot() {
       return say('HP ' + state.health + ', food ' + state.food + ', at ' +
         state.position.x + ', ' + state.position.y + ', ' + state.position.z);
     }
-    if (command === '!champu') return say('Use !champu <your message>.');
-    if (!command.toLowerCase().startsWith('!champu ')) return;
-    if (!isOwner(sender)) return say(sender + ': only my configured owner can use AI commands.');
-    const prompt = command.slice('!champu '.length).trim();
+    if (command === '!champu') return say('Use !champu <message>.');
+    if (!isOwner(sender)) return;
+    const prompt = command.toLowerCase().startsWith('!champu ')
+      ? command.slice('!champu '.length).trim()
+      : command;
     if (prompt) await askAI(sender, prompt);
   });
   bot.on('kicked', reason => console.error('Kicked:', reason));
