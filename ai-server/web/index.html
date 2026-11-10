@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Champu AI — Control Room</title>
+<style>
+:root{color-scheme:dark;--bg:#080b14;--panel:#111827;--panel2:#0d1422;--line:#243147;--muted:#8ea0b9;--text:#edf4ff;--cyan:#5ee7f5;--violet:#9b8cff;--green:#63e6a5}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 15% 0%,#182344 0,transparent 42%),radial-gradient(ellipse at 90% 10%,#182039 0,transparent 35%),var(--bg);color:var(--text);font:15px/1.5 Inter,ui-sans-serif,system-ui,Arial}
+.app{max-width:1440px;margin:auto;min-height:100vh;padding:22px;display:grid;grid-template-columns:250px minmax(0,1fr);gap:18px}
+.side,.panel{background:rgba(17,24,39,.88);border:1px solid var(--line);border-radius:20px;box-shadow:0 18px 55px #0005}
+.side{padding:20px;display:flex;flex-direction:column;gap:22px}.brand{display:flex;gap:12px;align-items:center}.orb{width:45px;height:45px;border-radius:15px;background:linear-gradient(135deg,var(--cyan),var(--violet));display:grid;place-items:center;color:#08111c;font-size:23px;font-weight:900;box-shadow:0 0 28px #5ee7f555}
+.brand b{font-size:18px;letter-spacing:.5px}.brand small{display:block;color:var(--muted);font-size:11px;letter-spacing:2px}
+.nav{display:grid;gap:8px}.nav button{border:1px solid transparent;background:transparent;color:#aab9ce;text-align:left;padding:12px 13px;border-radius:12px;font:inherit;cursor:pointer}.nav button.active,.nav button:hover{background:#1b2940;border-color:#30425e;color:white}
+.sidefoot{margin-top:auto;color:var(--muted);font-size:12px}.main{min-width:0;display:grid;gap:16px;grid-template-rows:auto auto minmax(450px,1fr)}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px}.eyebrow{color:var(--cyan);font-size:11px;letter-spacing:2px;font-weight:700}.top h1{font-size:clamp(22px,3vw,32px);margin:3px 0}.status{border:1px solid var(--line);background:#111a2a;padding:9px 13px;border-radius:30px;color:var(--muted);font-size:12px;white-space:nowrap}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#e7b65c;margin-right:7px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.stat{background:rgba(17,24,39,.8);border:1px solid var(--line);border-radius:16px;padding:15px}.stat small{color:var(--muted)}.stat b{display:block;font-size:18px;margin-top:5px}
+.panel{padding:18px;min-height:0}.view{display:none;min-height:0}.view.active{display:block}.chatview{height:100%;display:grid;grid-template-rows:auto minmax(250px,1fr) auto;gap:14px}.panelhead{display:flex;justify-content:space-between;align-items:center;gap:10px}.panelhead h2{margin:0;font-size:17px}.sub{color:var(--muted);font-size:12px}.messages{overflow:auto;display:flex;flex-direction:column;gap:12px;padding:8px 4px}.bubble{max-width:min(78%,720px);padding:12px 15px;border-radius:16px;white-space:pre-wrap;overflow-wrap:anywhere}.bubble.bot{align-self:flex-start;background:#17243a;border:1px solid #2a3c58;border-bottom-left-radius:5px}.bubble.user{align-self:flex-end;background:linear-gradient(135deg,#375b91,#514b91);border-bottom-right-radius:5px}.who{font-size:10px;letter-spacing:1px;color:var(--cyan);font-weight:800;margin-bottom:4px}.user .who{color:#d8d1ff}.composer{display:flex;gap:9px;align-items:end}.composer textarea{flex:1;resize:vertical;min-height:48px;max-height:140px;background:#0b1220;border:1px solid #2a3a54;border-radius:13px;padding:13px;color:white;font:inherit;outline:none}.composer textarea:focus{border-color:var(--cyan)}button.primary,button.tool{border:0;border-radius:12px;padding:12px 16px;font-weight:700;cursor:pointer}.primary{background:linear-gradient(110deg,var(--cyan),#9b8cff);color:#07111b}.tool{background:#1b2940;color:#dce9fb;border:1px solid #344763!important}.tool:disabled,.primary:disabled{opacity:.5;cursor:not-allowed}
+.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.card{background:#0c1422;border:1px solid var(--line);border-radius:15px;padding:16px}.card h3{margin:0 0 6px;font-size:14px}.card p{color:var(--muted);margin:0;font-size:13px}.memorylist{display:grid;gap:8px;margin-top:14px}.memory{padding:12px;border:1px solid var(--line);border-radius:12px;background:#0b1320}.memory small{color:var(--cyan);text-transform:uppercase;letter-spacing:1px;font-size:10px}.memory p{margin:5px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}.empty{color:var(--muted);text-align:center;margin:auto;padding:25px}
+@media(max-width:850px){.app{grid-template-columns:1fr;padding:12px}.side{padding:13px;gap:12px}.nav{grid-template-columns:repeat(3,1fr)}.nav button{text-align:center;padding:9px 5px;font-size:12px}.sidefoot{display:none}.main{grid-template-rows:auto auto minmax(500px,1fr)}}
+@media(max-width:560px){.stats{grid-template-columns:1fr 1fr}.stats .stat:last-child{display:none}.top{align-items:flex-start;flex-direction:column}.bubble{max-width:92%}.composer{flex-wrap:wrap}.composer textarea{flex-basis:100%}.cards{grid-template-columns:1fr}}
+</style>
+</head>
+<body><div class="app">
+<aside class="side">
+ <div class="brand"><div class="orb">C</div><div><b>CHAMPU AI</b><small>PERSONAL CONTROL ROOM</small></div></div>
+ <nav class="nav">
+  <button class="active" data-view="chat">◉ &nbsp; Live Chat</button>
+  <button data-view="mind">✧ &nbsp; AI Mind</button>
+  <button data-view="memory">▤ &nbsp; Memories</button>
+ </nav>
+ <div class="sidefoot">Minecraft connection: <b style="color:#e7b65c">OFFLINE</b><br>Standalone AI mode · No game required</div>
+</aside>
+<main class="main">
+ <header class="top"><div><div class="eyebrow">YOUR AI COMPANION</div><h1>Champu's Control Room</h1><div class="sub">Talk to Champu and inspect what the AI currently remembers.</div></div><div class="status" id="status"><span class="dot"></span>Checking AI brain…</div></header>
+ <section class="stats">
+  <div class="stat"><small>AI SERVICE</small><b id="service">Checking…</b></div>
+  <div class="stat"><small>AI MODE</small><b id="mode">—</b></div>
+  <div class="stat"><small>MEMORY</small><b id="memoryStatus">SQLite</b></div>
+ </section>
+ <section class="panel view active chatview" id="view-chat">
+  <div class="panelhead"><div><h2>Chat with Champu</h2><div class="sub">Hindi / Hinglish conversation · Standalone mode</div></div><button class="tool" id="speakToggle">🔊 Voice: Off</button></div>
+  <div class="messages" id="messages"><div class="empty">Champu ko pehla message bhejo! 👋</div></div>
+  <form class="composer" id="chatForm"><button class="tool" type="button" id="micBtn" title="Dictate message">🎙️</button><textarea id="message" placeholder="Champu se Hindi mein baat karo…" maxlength="1200" required></textarea><button class="primary" id="sendBtn">Send ➤</button></form>
+ </section>
+ <section class="panel view" id="view-mind">
+  <div class="panelhead"><div><h2>AI Mind</h2><div class="sub">Live service information and current capabilities</div></div></div>
+  <div class="cards" style="margin-top:16px">
+   <div class="card"><h3>🧠 Reasoning engine</h3><p id="mindModel">Waiting for health check…</p></div>
+   <div class="card"><h3>🌍 Current world</h3><p>Standalone mode. Champu is not connected to Minecraft, so no live game-world observations are available.</p></div>
+   <div class="card"><h3>💭 Decision output</h3><p>Chat responses are generated by the configured AI model. Autonomous background thinking is not enabled from this dashboard.</p></div>
+   <div class="card"><h3>🎭 Personality</h3><p>Champu's Hindi conversational character is active through its system prompt. Self-evolving personality controls are a future module.</p></div>
+  </div>
+ </section>
+ <section class="panel view" id="view-memory">
+  <div class="panelhead"><div><h2>Long-term memory</h2><div class="sub">Recent saved conversation turns for Champu</div></div><button class="tool" id="refreshMemory">↻ Refresh</button></div>
+  <div class="memorylist" id="memoryList"><div class="empty">Loading memories…</div></div>
+ </section>
+</main></div>
+<script>
+const $=id=>document.getElementById(id);let voiceOn=false;let historyLoaded=false;
+document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-view]').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x.id==='view-'+b.dataset.view));if(b.dataset.view==='memory')loadMemory()}));
+function bubble(role,text){const empty=$('messages').querySelector('.empty');if(empty)empty.remove();const el=document.createElement('div');el.className='bubble '+(role==='user'?'user':'bot');const who=document.createElement('div');who.className='who';who.textContent=role==='user'?'YOU':'CHAMPU';const body=document.createElement('div');body.textContent=text;el.append(who,body);$('messages').append(el);$('messages').scrollTop=$('messages').scrollHeight}
+async function health(){try{const r=await fetch('/health');if(!r.ok)throw Error();const d=await r.json();$('service').textContent='Online';$('mode').textContent=d.mode;$('memoryStatus').textContent=d.memory;$('mindModel').textContent='Mode: '+d.mode+' · Local model: '+d.local_model+' · Cloud fallback: '+(d.cloud_configured?'configured':'not configured');$('status').innerHTML='<span class="dot" style="background:var(--green)"></span>AI brain online'}catch(e){$('service').textContent='Offline';$('status').innerHTML='<span class="dot"></span>AI brain unavailable';$('mindModel').textContent='Start the Python AI server and check /health.'}}
+$('chatForm').addEventListener('submit',async e=>{e.preventDefault();const message=$('message').value.trim();if(!message)return;bubble('user',message);$('message').value='';$('sendBtn').disabled=true;$('sendBtn').textContent='…';try{const r=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({player:'Owner',message,world:{mode:'standalone',minecraft_connected:false},remember:true})});const d=await r.json();if(!r.ok)throw Error(d.detail||'AI request failed');bubble('assistant',d.reply);if(voiceOn&&'speechSynthesis'in window){speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(d.reply);u.lang='hi-IN';u.rate=.98;speechSynthesis.speak(u)}historyLoaded=false}catch(err){bubble('assistant','Abhi AI se connection nahi ho pa raha: '+err.message)}finally{$('sendBtn').disabled=false;$('sendBtn').textContent='Send ➤';$('message').focus()}});
+$('speakToggle').addEventListener('click',()=>{voiceOn=!voiceOn;$('speakToggle').textContent=voiceOn?'🔊 Voice: On':'🔊 Voice: Off'});
+$('micBtn').addEventListener('click',()=>{const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){bubble('assistant','Is browser mein speech recognition supported nahi hai. Keyboard se message type kar sakte ho.');return}const rec=new SR();rec.lang='hi-IN';rec.interimResults=false;rec.onresult=e=>$('message').value=e.results[0][0].transcript;rec.onerror=()=>bubble('assistant','Microphone input unavailable. Browser microphone permission check karo.');rec.start()});
+async function loadMemory(){try{const r=await fetch('/memory?player=Owner&limit=50');if(!r.ok)throw Error();const d=await r.json();const root=$('memoryList');root.innerHTML='';if(!d.items.length){root.innerHTML='<div class="empty">Abhi koi saved memory nahi hai. Champu se chat shuru karo!</div>';return}d.items.forEach(m=>{const box=document.createElement('div');box.className='memory';const tag=document.createElement('small');tag.textContent=m.role;const p=document.createElement('p');p.textContent=m.content;box.append(tag,p);root.append(box)})}catch(e){$('memoryList').textContent='Memory load nahi ho paayi: '+e.message}}
+$('refreshMemory').addEventListener('click',loadMemory);health();setInterval(health,20000);
+</script></body></html>

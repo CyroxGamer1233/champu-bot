@@ -5,10 +5,13 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 APP_DIR = Path(__file__).resolve().parent
+WEB_DIR = APP_DIR / "web"
 DB_PATH = Path(os.getenv("CHAMPU_MEMORY_DB", str(APP_DIR / "champu_memory.sqlite3")))
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
@@ -18,7 +21,7 @@ CLOUD_API_KEY = os.getenv("CLOUD_API_KEY", "")
 AI_MODE = os.getenv("AI_MODE", "hybrid").lower()
 MAX_MEMORY = int(os.getenv("MAX_MEMORY", "16"))
 
-app = FastAPI(title="Champu AI Brain", version="0.2.0")
+app = FastAPI(title="Champu AI Brain", version="0.3.0")
 
 
 def db():
@@ -55,12 +58,13 @@ def system_prompt(world: dict[str, Any]):
     safe_world = json.dumps(world, ensure_ascii=False)[:3500]
     return (
         "You are Champu, a friendly, curious Minecraft companion. Speak naturally and briefly; "
-        "Hindi/Hinglish is welcome when the player uses it. You are an AI inside Minecraft, not a human. "
-        "Use the supplied world snapshot for truthful awareness. Never claim an action is complete unless "
-        "the game reports it. Do not destroy blocks, attack players, enter lava, or spend items. "
-        "If the player clearly requests movement, return one action from follow, come, stop, look, none. "
-        "Return ONLY JSON with keys reply (string) and action (object with key type). "
-        "World snapshot: " + safe_world
+        "prefer Hindi/Hinglish when the player uses it. You are an AI character, not a human. "
+        "In standalone mode, talk naturally about your current conversation and remembered experiences. "
+        "Use the supplied world snapshot only when relevant; never invent live Minecraft observations. "
+        "Never claim an action is complete unless the game reports it. Do not destroy blocks, attack players, "
+        "enter lava, or spend items. If the player clearly requests movement, return one action from "
+        "follow, come, stop, look, none. Return ONLY JSON with keys reply (string) and action "
+        "(object with key type). World snapshot: " + safe_world
     )
 
 
@@ -102,9 +106,24 @@ def parse_result(raw: str):
     return {"reply": str(data.get("reply", "Hmm, mujhe samajh nahi aaya."))[:500], "action": {"type": action_type}}
 
 
+@app.get("/")
+async def dashboard():
+    index = WEB_DIR / "index.html"
+    if not index.is_file():
+        raise HTTPException(status_code=404, detail="Dashboard files are missing")
+    return FileResponse(index)
+
+
 @app.get("/health")
 async def health():
-    return {"ok": True, "mode": AI_MODE, "local_model": OLLAMA_MODEL, "cloud_configured": bool(CLOUD_API_KEY), "memory": "sqlite"}
+    return {"ok": True, "mode": AI_MODE, "local_model": OLLAMA_MODEL, "cloud_configured": bool(CLOUD_API_KEY), "memory": "sqlite", "minecraft_connected": False}
+
+
+@app.get("/memory")
+async def memory(player: str = Query(default="Owner", max_length=32), limit: int = Query(default=50, ge=1, le=100)):
+    with db() as connection:
+        rows = connection.execute("SELECT role, content, created_at FROM memories WHERE player=? ORDER BY id DESC LIMIT ?", (player, limit)).fetchall()
+    return {"player": player, "items": [{"role": role, "content": content, "created_at": created_at} for role, content, created_at in reversed(rows)]}
 
 
 @app.post("/chat")
