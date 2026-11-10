@@ -21,7 +21,7 @@ API_KEY=os.getenv("CLOUD_API_KEY","")
 MODE=os.getenv("AI_MODE","hybrid").lower()
 LIMIT=max(2,min(int(os.getenv("MAX_MEMORY","20")),100))
 app=FastAPI(title="Champu AI Brain",version="1.0.0")
-ACTIONS={"follow","come","stop","look","wander","jump","none"}
+ACTIONS={"follow","come","stop","look","wander","jump","chop_wood","none"}
 pending_actions=[]
 
 def db():
@@ -60,13 +60,15 @@ def detect_action(message):
         return "jump"
     if any(word in text for word in ("wander", "ghoomo", "explore", "idhar udhar")):
         return "wander"
+    if any(word in text for word in ("chop wood", "wood todo", "lakdi todo", "tree todo", "ped todo")):
+        return "chop_wood"
     return "none"
 
 def prompt(world):
     return ("You are Champu, a Minecraft companion with this personality: "+PERSONALITY+". Reply naturally in Hindi/Hinglish when the user does. "
     "You are an AI, not a human; do not claim consciousness. Use only supplied facts and never invent live game observations. "
     "Standalone mode means Minecraft is disconnected and no action can execute. Never claim an action succeeded without game confirmation. "
-    "Allowed action types: follow, come, stop, look, wander, jump, none. Choose a safe useful action only when justified. Return ONLY JSON with keys reply, action:{type}, and goal:{reason,priority}. "
+    "Allowed action types: follow, come, stop, look, wander, jump, chop_wood, none. Choose a safe useful action only when justified. Return ONLY JSON with keys reply, action:{type}, and goal:{reason,priority}. "
     "Prefer a short answer (1-2 sentences). When connected, observe the world and choose one safe useful next action even without a user command; prefer look, wander, or jump during idle time. Never invent success. " + "World snapshot: "+json.dumps(world,ensure_ascii=False)[:3500])
 async def ollama(messages):
     async with httpx.AsyncClient(timeout=httpx.Timeout(75,connect=8)) as c:
@@ -132,7 +134,8 @@ def parse(raw):
             "stop": "Theek hai, main ruk gaya.",
             "look": "Theek hai, main dekh raha hoon.",
             "wander": "Theek hai, main thoda explore kar raha hoon.",
-            "jump": "Theek hai, jump karta hoon."
+            "jump": "Theek hai, jump karta hoon.",
+            "chop_wood": "Theek hai, main paas ka tree check karke wood collect karta hoon."
         }
         reply = replies.get(action_type)
     if not reply and "minecraft_connected" in data:
@@ -185,7 +188,8 @@ async def chat(req:Chat):
             "stop": "Theek hai, main ruk gaya.",
             "look": "Theek hai, main tumhari taraf dekh raha hoon.",
             "wander": "Theek hai, main thoda explore kar raha hoon.",
-            "jump": "Theek hai, jump karta hoon."
+            "jump": "Theek hai, jump karta hoon.",
+            "chop_wood": "Theek hai, main paas ka tree check karke wood collect karta hoon."
         }
         result["reply"] = action_replies[requested_action]
     if state["running"]:
