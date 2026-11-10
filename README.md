@@ -1,97 +1,84 @@
-# Champu AI
+# Champu AI — Creator Lab
 
-Champu is a Minecraft companion project with a Python AI brain and a game-client adapter.
+Champu is an AI companion prototype with a standalone web dashboard and a separate Minecraft Java adapter.
 
-## Current status
+## Included
+- Hindi/Hinglish chat website and animated block-character preview.
+- AI provider health checks (local Ollama and optional cloud fallback).
+- SQLite per-player conversation memory.
+- Separate Mineflayer Java adapter; it is not started by the website.
+- The avatar is a visual mockup, not a live Minecraft entity.
 
-- **Java Edition:** Mineflayer player client. Tested only by the user in their own server; no live server/build test is performed by this repository automation.
-- **AI brain:** Hybrid provider order (local Ollama first, cloud fallback). The cloud provider is OpenAI-compatible and configured through environment variables.
-- **Memory:** Per-player SQLite conversation memory stored locally in `ai-server/champu_memory.sqlite3`.
-- **World awareness:** The Java client sends position, health, food, dimension, time/weather, nearby players and nearby entities to the AI.
-- **Actions:** Owner-gated follow, come, stop and look actions. Pathfinding is configured not to dig blocks or build towers.
-- **Autonomy:** Optional periodic idle-think loop. It is deliberately restricted to low-risk companion actions.
-- **Web dashboard:** Standalone browser chat, service status and recent memory viewer. It works while Champu is disconnected from Minecraft.
+This is an AGI-inspired prototype, not human-level AGI or proof of consciousness. Custom voice cloning, self-evolving personality and native Bedrock/MCPE connectivity are not implemented.
 
-**Bedrock / MCPE:** The current player adapter uses Mineflayer and therefore connects to Java-compatible servers, not directly to a native Bedrock LAN world. The AI API is edition-neutral, but a native Bedrock protocol/gameplay adapter is a separate implementation and is not included in this release. Do not treat Bedrock support as complete yet.
+## Run the website
 
-This is an autonomous companion prototype, not human-level AGI. Keep it on a private/test world until you have tested it.
+Python 3.10+:
 
-## 1. AI brain and website setup
-
-Python 3.10+ recommended.
-
-```powershell
+```bash
 cd ai-server
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Install Ollama and pull a model:
+On Windows PowerShell activate with `.venv\\Scripts\\Activate.ps1`.
 
-```powershell
+### Local Ollama
+Install Ollama, then:
+```bash
 ollama pull llama3.2:3b
-```
-
-Set the provider configuration in your terminal before starting the server:
-
-```powershell
-$env:AI_MODE="hybrid"
-$env:OLLAMA_URL="http://127.0.0.1:11434"
-$env:OLLAMA_MODEL="llama3.2:3b"
-$env:CLOUD_API_KEY="YOUR_API_KEY"
-$env:CLOUD_MODEL="gpt-4o-mini"
+export AI_MODE=local
+export OLLAMA_URL=http://127.0.0.1:11434
+export OLLAMA_MODEL=llama3.2:3b
 python app.py
 ```
 
-Open **http://127.0.0.1:8000** in your browser to use the Champu dashboard. It includes:
-- Live Hindi/Hinglish chat with persistent SQLite memory.
-- AI service and provider status.
-- Recent saved conversation memory.
-- Browser microphone dictation and browser text-to-speech where supported. These use the browser's available speech services; custom voice cloning / a self-evolving voice is not implemented yet.
+### Cloud provider
+```bash
+export AI_MODE=cloud
+export CLOUD_API_KEY="your-key"
+export CLOUD_MODEL=gpt-4o-mini
+python app.py
+```
 
-Hybrid mode tries local Ollama first and falls back to the cloud provider if local inference fails. If you do not configure a cloud key, Champu continues to use Ollama and reports an unavailable AI service if Ollama is also offline. Never commit API keys to GitHub.
+### Hybrid
+```bash
+export AI_MODE=hybrid
+export OLLAMA_URL=http://127.0.0.1:11434
+export CLOUD_API_KEY="your-key"
+python app.py
+```
 
-Health check: `http://127.0.0.1:8000/health`.
+Hybrid tries Ollama first, then cloud. Never commit API keys. Open http://127.0.0.1:8000. In Codespaces, open forwarded port 8000 in the Ports tab.
 
-## 2. Java player bot setup
+## Dashboard
+- Chat with memory
+- Animated Champu character mockup
+- Provider status and memory viewer
+- Browser microphone and speech features when supported
 
-```powershell
+Speech uses the browser/device's available voice. It is not a cloned voice.
+
+## API
+- `GET /` dashboard
+- `GET /health` server/provider status
+- `GET /memory?player=Owner&limit=50`
+- `POST /chat`
+- `POST /think`
+
+The API itself does not connect to Minecraft.
+
+## Optional Java bot
+Only when you intentionally want a Java server connection:
+```bash
 cd player-bot
-Copy-Item .env.example .env
 npm install
 ```
+Configure `.env` from `.env.example`, including MC_HOST, MC_PORT and OWNER_NAME, then run `npm start`. Mineflayer supports Java-compatible servers, not native Bedrock LAN. The current action allowlist is limited to follow, come, stop and look.
 
-Edit `.env`:
-- `MC_HOST`: LAN IPv4 address of the computer hosting the Java server.
-- `MC_PORT`: server port (usually 25565; use the actual LAN port shown by Open to LAN).
-- `MC_USERNAME`: bot player name.
-- `MC_AUTH`: `offline` for offline-mode servers, or `microsoft` for Microsoft-authenticated Java servers.
-- `OWNER_NAME`: exact Minecraft username allowed to issue AI and movement commands.
-- `AUTONOMOUS_MODE`: `true` enables the limited idle-think loop.
-
-Start the Python service first, then:
-
-```powershell
-npm start
-```
-
-The computer running the bot must be able to reach both the Minecraft server and the AI server. If the AI server and bot run on different computers, change `AI_URL` and `THINK_URL` to the AI computer's LAN IP, and configure the AI server to listen on the LAN only when your firewall and network are trusted.
-
-## 3. In-game commands
-
-- `!champu <message>` — chat with Champu using current world context.
-- `!follow` — follow the owner.
-- `!come` — move near the owner.
-- `!stop` — stop pathfinding.
-- `!status` — report basic status.
-
-Set `OWNER_NAME` before joining a shared server. When it is blank, the AI chat endpoint is not owner-restricted by the bot. Keep the bot on a trusted server.
-
-## 4. Bedrock / MCPE roadmap
-
-A native Bedrock adapter must implement Bedrock authentication, player connection, chat events, world/entity observations and movement/action packets for the target Bedrock protocol version. This is not interchangeable with Mineflayer. Until that adapter is implemented and tested, use the Java adapter only for Java servers.
-
-## Safety and limitations
-
-Champu does not have general-purpose human intelligence. Its decisions depend on the configured language model and the limited world snapshot. The current action allowlist excludes block breaking/placing, inventory use, combat, and redstone. AI-generated text is not proof that a game action succeeded. Test on a disposable world and keep backups.
+## Troubleshooting
+- Website unavailable: run `python app.py` from `ai-server`; check port 8000.
+- AI not ready: open `/health`; start Ollama or configure a cloud key.
+- Chat 503: read the terminal's provider error. Codespaces usually does not have Ollama running unless you set it up.
+- Memory empty: send a message; saved turns are in `ai-server/champu_memory.sqlite3`.
