@@ -118,6 +118,10 @@ async def chat(req:Chat):
     world["minecraft"] = state["config"] if state["running"] else None
     msgs=[{"role":"system","content":prompt(world)}]+history(req.player)+[{"role":"user","content":req.message.strip()}]
     raw,model=await generate(msgs); result=parse(raw)
+    if state["running"]:
+        bad = ("not connected", "disconnected", "join bot button", "standalone mode")
+        if any phrase in result["reply"].lower() for phrase in bad:
+            result["reply"] = "Haan bhai, Champu Minecraft server se connected hai. Main world mein active hoon."
     if req.remember:remember(req.player,"user",req.message.strip());remember(req.player,"assistant",result["reply"])
     result.update({"model":model,"minecraft_connected":state["running"]});return result
 @app.post("/think")
