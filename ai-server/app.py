@@ -20,6 +20,7 @@ MODE=os.getenv("AI_MODE","hybrid").lower()
 LIMIT=max(2,min(int(os.getenv("MAX_MEMORY","20")),100))
 app=FastAPI(title="Champu AI Brain",version="1.0.0")
 ACTIONS={"follow","come","stop","look","none"}
+pending_actions=[]
 
 def db():
     DB.parent.mkdir(parents=True,exist_ok=True)
@@ -43,6 +44,18 @@ def remember(player,role,content):
     with db() as c:
         c.execute("INSERT INTO memories(player,role,content) VALUES(?,?,?)",(player,role,content[:2000]))
         c.execute("DELETE FROM memories WHERE player=? AND id NOT IN (SELECT id FROM memories WHERE player=? ORDER BY id DESC LIMIT ?)",(player,player,LIMIT*4))
+def detect_action(message):
+    text = message.lower().strip()
+    if any(word in text for word in ("stop", "ruk jao", "ruko", "mat aao")):
+        return "stop"
+    if any(word in text for word in ("follow", "mere piche", "saath chalo", "mere saath")):
+        return "follow"
+    if any(word in text for word in ("come", "aao", "aa jao", "idhar aao", "mere paas")):
+        return "come"
+    if any(word in text for word in ("look", "dekho", "meri taraf")):
+        return "look"
+    return "none"
+
 def prompt(world):
     return ("You are Champu, a friendly curious Minecraft companion character. Reply naturally in Hindi/Hinglish when the user does. "
     "You are an AI, not a human; do not claim consciousness. Use only supplied facts and never invent live game observations. "
@@ -146,10 +159,26 @@ async def chat(req:Chat):
         result={"reply": "AI abhi available nahi hai. Dashboard ke AI status aur server logs check karo.", "action": {"type": "none"}}
         model="fallback"
         result["error"] = error.detail
+    requested_action = detect_action(req.message)
+    if requested_action != "none" and state["running"]:
+        result["action"] = {"type": requested_action}
+        action_replies = {
+            "follow": "Theek hai, main tumhare saath chal raha hoon.",
+            "come": "Theek hai, main tumhare paas aa raha hoon.",
+            "stop": "Theek hai, main ruk gaya.",
+            "look": "Theek hai, main tumhari taraf dekh raha hoon."
+        }
+        result["reply"] = action_replies[requested_action]
     if state["running"]:
         bad = ("not connected", "disconnected", "join bot button", "standalone mode")
         if any(phrase in result["reply"].lower() for phrase in bad):
             result["reply"] = "Haan bhai, Champu Minecraft server se connected hai. Main world mein active hoon."
+    if state["running"] and result["action"]["type"] != "none":
+        pending_actions.append({
+            "action": result["action"],
+            "sender": state["config"].get("owner_name") or req.player
+        })
+        del pending_actions[:-20]
     if req.remember:remember(req.player,"user",req.message.strip());remember(req.player,"assistant",result["reply"])
     result.update({"model":model,"minecraft_connected":state["running"]});return result
 @app.post("/think")
@@ -214,7 +243,8 @@ async def minecraft_logs_endpoint():
 async def minecraft_heartbeat(request: MinecraftHeartbeat):
     global minecraft_live
     minecraft_live = request.model_dump()
-    return {"ok": True}
+    action = pending_actions.pop(0) if pending_actions else None
+    return {"ok": True, "action": action["action"] if action else {"type": "none"}}
 
 @app.post("/minecraft/connect")
 async def minecraft_connect(request: MinecraftConnect):
