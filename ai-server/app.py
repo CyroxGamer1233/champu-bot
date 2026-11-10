@@ -157,6 +157,9 @@ class MinecraftHeartbeat(BaseModel):
     food: float = 0
     dimension: str = "unknown"
     players: list[str] = Field(default_factory=list)
+    nearby_entities: list[dict[str, Any]] = Field(default_factory=list)
+    time_of_day: int | None = None
+    weather: str = "unknown"
 
 def minecraft_status():
     global minecraft_process
