@@ -83,7 +83,11 @@ def parse(raw):
         data = {"reply": data, "action": {"type": "none"}}
     if not isinstance(data, dict):
         data = {}
-    reply = data.get("reply") or data.get("message") or data.get("response") or data.get("content") or text
+    reply = data.get("reply") or data.get("message") or data.get("response") or data.get("content")
+    if not reply and "minecraft_connected" in data:
+        reply = "Abhi main Minecraft se connected nahi hoon. Join Bot button se server connect karo."
+    if not reply:
+        reply = text
     if isinstance(reply, dict):
         reply = reply.get("text") or reply.get("content") or str(reply)
     reply = str(reply or "AI ne empty response diya. Ollama model output check karo.").strip()
