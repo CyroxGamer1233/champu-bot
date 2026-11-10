@@ -117,7 +117,12 @@ async def chat(req:Chat):
     world["minecraft_connected"] = state["running"]
     world["minecraft"] = state["config"] if state["running"] else None
     msgs=[{"role":"system","content":prompt(world)}]+history(req.player)+[{"role":"user","content":req.message.strip()}]
-    raw,model=await generate(msgs); result=parse(raw)
+    try:
+        raw,model=await generate(msgs)
+        result=parse(raw)
+    except HTTPException:
+        result={"reply": "Haan bhai, Champu yahan hai. AI provider abhi ready nahi hai, lekin Minecraft connection active hai.", "action": {"type": "none"}}
+        model="fallback"
     if state["running"]:
         bad = ("not connected", "disconnected", "join bot button", "standalone mode")
         if any(phrase in result["reply"].lower() for phrase in bad):
@@ -135,6 +140,7 @@ MINECRAFT_DIR = ROOT.parent / "player-bot"
 minecraft_process = None
 minecraft_config = {}
 minecraft_logs = []
+minecraft_live = {}
 
 class MinecraftConnect(BaseModel):
     host: str = Field(min_length=1, max_length=255)
@@ -143,6 +149,14 @@ class MinecraftConnect(BaseModel):
     auth: str = Field(default="offline", pattern="^(offline|microsoft)$")
     version: str = Field(default="1.21.1", min_length=1, max_length=32)
     owner_name: str = Field(default="", max_length=32)
+
+class MinecraftHeartbeat(BaseModel):
+    connected: bool = True
+    position: dict[str, Any] = Field(default_factory=dict)
+    health: float = 0
+    food: float = 0
+    dimension: str = "unknown"
+    players: list[str] = Field(default_factory=list)
 
 def minecraft_status():
     global minecraft_process
@@ -153,6 +167,7 @@ def minecraft_status():
         "running": minecraft_process is not None,
         "config": minecraft_config,
         "logs": minecraft_logs[-40:],
+        "live": minecraft_live,
     }
 
 def collect_minecraft_logs(process):
@@ -168,6 +183,12 @@ async def minecraft_status_endpoint():
 @app.get("/minecraft/logs")
 async def minecraft_logs_endpoint():
     return {"logs": minecraft_logs[-100:]}
+
+@app.post("/minecraft/heartbeat")
+async def minecraft_heartbeat(request: MinecraftHeartbeat):
+    global minecraft_live
+    minecraft_live = request.model_dump()
+    return {"ok": True}
 
 @app.post("/minecraft/connect")
 async def minecraft_connect(request: MinecraftConnect):
@@ -217,6 +238,7 @@ async def minecraft_disconnect():
         except __import__("subprocess").TimeoutExpired:
             minecraft_process.kill()
     minecraft_process = None
+    minecraft_live.clear()
     return minecraft_status()
 
 
