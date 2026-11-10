@@ -24,6 +24,8 @@ let thinking = false;
 let reconnectTimer;
 let heartbeatTimer;
 let lastAutoAction = 'none';
+let autoTick = 0;
+let lastAutoSpeech = '';
 const history = [];
 
 function say(message) {
@@ -197,12 +199,25 @@ async function autonomousThink() {
       player: ownerName,
       world: snapshot()
     }, { timeout: 65000 });
-    const action = response.data?.action;
+    autoTick += 1;
+    const data = response.data || {};
+    const action = data.action;
+    const reply = String(data.reply || '').trim();
+    if (reply && reply !== lastAutoSpeech) {
+      say(reply);
+      lastAutoSpeech = reply;
+    }
     if (action?.type && action.type !== 'none' && action.type !== lastAutoAction) {
       await applyAction(action, ownerName, true);
       lastAutoAction = action.type;
     } else if (action?.type === 'none') {
       lastAutoAction = 'none';
+      // If the small local model chooses no action, keep Champu alive in the world.
+      if (autoTick % 2 === 0) {
+        await applyAction({ type: 'wander' }, ownerName, true);
+        say('Main thoda explore kar raha hoon.');
+        lastAutoAction = 'wander';
+      }
     }
   } catch (error) {
     console.error('Autonomous thought failed:', error.message);
