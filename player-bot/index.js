@@ -34,6 +34,22 @@ function isOwner(sender) {
   return !ownerName || sender.toLowerCase() === ownerName.toLowerCase();
 }
 
+function findPlayerEntity(name = ownerName) {
+  const wanted = String(name || '').toLowerCase();
+  const player = Object.values(bot?.players || {}).find(
+    entry => entry.username?.toLowerCase() === wanted
+  );
+  return player?.entity;
+}
+
+function findPlayerName(name = ownerName) {
+  const wanted = String(name || '').toLowerCase();
+  const player = Object.values(bot?.players || {}).find(
+    entry => entry.username?.toLowerCase() === wanted
+  );
+  return player?.username || name;
+}
+
 function snapshot() {
   if (!bot?.entity) return {};
   const p = bot.entity.position;
@@ -98,16 +114,18 @@ function setNavigation(target) {
 
 function follow(sender) {
   if (!isOwner(sender)) return say('Movement commands are owner-only.');
-  const target = bot.players[sender]?.entity;
-  if (!target) return say(sender + ': I cannot see you right now.');
+  const actualName = findPlayerName(sender);
+  const target = findPlayerEntity(sender);
+  if (!target) return say(actualName + ': I cannot see you right now. Come closer or wait for the world to load.');
   setNavigation(new goals.GoalFollow(target, 2));
   say('Okay ' + sender + ', I am following you.');
 }
 
 function come(sender) {
   if (!isOwner(sender)) return say('Movement commands are owner-only.');
-  const target = bot.players[sender]?.entity;
-  if (!target) return say(sender + ': I cannot find you right now.');
+  const actualName = findPlayerName(sender);
+  const target = findPlayerEntity(sender);
+  if (!target) return say(actualName + ': I cannot find you right now. Come closer or wait for the world to load.');
   setNavigation(new goals.GoalNear(target.position.x, target.position.y, target.position.z, 2));
   say('Coming to you.');
 }
@@ -145,7 +163,7 @@ async function applyAction(action, sender, autonomousCall = false) {
   if (type === 'wander') return wander(sender || ownerName);
   if (type === 'jump') return jump(sender || ownerName);
   if (type === 'look') {
-    const target = bot.players[sender || ownerName]?.entity;
+    const target = findPlayerEntity(sender || ownerName);
     if (target) await bot.lookAt(target.position.offset(0, 1.4, 0), true);
   }
 }
