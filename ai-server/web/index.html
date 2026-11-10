@@ -5,11 +5,11 @@
 </style></head><body><div class="app"><aside class="side"><div class="brand"><div class="mark">C</div><div><b>CHAMPU AI</b><small>CREATOR LAB / V1</small></div></div><nav class="nav"><button class="active" data-tab="studio">◉ &nbsp; Studio</button><button data-tab="mind">✧ &nbsp; AI Mind</button><button data-tab="memory">▤ &nbsp; Memory</button></nav><div class="sidefoot">MINECRAFT STATUS<br><b id="sideMcStatus" style="color:var(--amber)">OFFLINE</b><br><br>Champu is not joining a world in this mode.</div></aside><main><header class="top"><div><div class="eyebrow">YOUR AI COMPANION PROJECT</div><h1>Champu's Creator Lab</h1><div class="muted">Talk to Champu, preview its character and inspect its memory.</div></div><div class="status" id="status"><span class="dot"></span>Checking brain…</div></header><section class="stats"><div class="stat"><small>WEB SERVER</small><b id="service">Checking…</b></div><div class="stat"><small>AI PROVIDER</small><b id="provider">Checking…</b></div><div class="stat"><small>MEMORY STORE</small><b>SQLite</b></div><div class="stat"><small>MINECRAFT</small><b style="color:var(--amber)">Disconnected</b></div></section>
 <section class="panel" id="minecraftPanel" style="margin-bottom:13px">
 <div class="head"><div><h2>🎮 Join Minecraft</h2><div class="tiny">Run Champu as a real Java player from this dashboard</div></div><span class="tag" id="mcBadge">OFFLINE</span></div>
-<form id="mcForm" style="display:grid;grid-template-columns:2fr 1fr 1.3fr 1fr auto;gap:8px;margin-top:12px">
+<form id="mcForm" style="display:grid;grid-template-columns:2fr 1fr 1.3fr 1.3fr 1fr auto;gap:8px;margin-top:12px">
 <input class="composer textarea" id="mcHost" placeholder="Server IP / host" value="127.0.0.1" required style="background:#080f1c;border:1px solid #30425f;border-radius:10px;padding:10px;color:white">
 <input id="mcPort" type="number" min="1" max="65535" value="25565" placeholder="Port" style="background:#080f1c;border:1px solid #30425f;border-radius:10px;padding:10px;color:white">
 <input id="mcUser" maxlength="32" value="ChampuBot" placeholder="Bot username" style="background:#080f1c;border:1px solid #30425f;border-radius:10px;padding:10px;color:white">
-<select id="mcAuth" style="background:#080f1c;border:1px solid #30425f;border-radius:10px;padding:10px;color:white"><option value="offline">Offline server</option><option value="microsoft">Microsoft login</option></select>
+<input id="mcOwner" maxlength="32" value="Owner" placeholder="Your Minecraft username" style="background:#080f1c;border:1px solid #30425f;border-radius:10px;padding:10px;color:white"><select id="mcAuth" style="background:#080f1c;border:1px solid #30425f;border-radius:10px;padding:10px;color:white"><option value="offline">Offline server</option><option value="microsoft">Microsoft login</option></select>
 <button class="btn primary" id="mcJoin" type="submit">JOIN BOT</button>
 </form>
 <div id="mcInfo" class="tiny" style="margin-top:8px">Bot is not running.</div>
@@ -59,7 +59,7 @@ async function refreshMinecraft(){
     $('sideMcStatus').textContent=running ? 'LIVE PLAYER' : 'OFFLINE';
     $('sideMcStatus').style.color=running ? 'var(--green)' : 'var(--amber)';
     $('mcLogs').textContent=(d.logs||[]).join('\n');
-    if(d.config && d.config.host){ $('mcHost').value=d.config.host; $('mcPort').value=d.config.port; $('mcUser').value=d.config.username; $('mcAuth').value=d.config.auth; }
+    if(d.config && d.config.host){ $('mcHost').value=d.config.host; $('mcPort').value=d.config.port; $('mcUser').value=d.config.username; $('mcOwner').value=d.config.owner_name||'Owner'; $('mcAuth').value=d.config.auth; }
   }catch(e){ $('mcInfo').textContent='Minecraft control unavailable: '+e.message; }
 }
 $('mcForm').onsubmit=async e=>{
@@ -68,7 +68,7 @@ $('mcForm').onsubmit=async e=>{
   $('mcJoin').disabled=true;
   try{
     const endpoint=running?'/minecraft/disconnect':'/minecraft/connect';
-    const body=running?{}:{host:$('mcHost').value.trim(),port:Number($('mcPort').value),username:$('mcUser').value.trim(),auth:$('mcAuth').value,version:'1.21.1',owner_name:'Owner'};
+    const body=running?{}:{host:$('mcHost').value.trim(),port:Number($('mcPort').value),username:$('mcUser').value.trim(),auth:$('mcAuth').value,version:'1.21.1',owner_name:$('mcOwner').value.trim()};
     const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     const d=await r.json(); if(!r.ok) throw Error(d.detail||'HTTP '+r.status);
     await refreshMinecraft();
