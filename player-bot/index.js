@@ -11,6 +11,7 @@ const auth = env('MC_AUTH', 'offline');
 const version = env('MC_VERSION', '1.21.1');
 const aiUrl = env('AI_URL', 'http://127.0.0.1:8000/chat');
 const thinkUrl = env('THINK_URL', aiUrl.replace(/\/chat$/, '/think'));
+const heartbeatUrl = env('HEARTBEAT_URL', aiUrl.replace(/\/chat$/, '/minecraft/heartbeat'));
 const ownerName = env('OWNER_NAME');
 const autonomous = env('AUTONOMOUS_MODE', 'true').toLowerCase() === 'true';
 const thinkInterval = Math.max(30000, Number(env('THINK_INTERVAL_MS', '60000')));
@@ -20,6 +21,7 @@ let bot;
 let thinkTimer;
 let thinking = false;
 let reconnectTimer;
+let heartbeatTimer;
 let lastAutoAction = 'none';
 const history = [];
 
@@ -59,6 +61,23 @@ function snapshot() {
     nearbyPlayers,
     nearbyEntities
   };
+}
+
+async function sendHeartbeat() {
+  if (!bot?.entity) return;
+  try {
+    const state = snapshot();
+    await axios.post(heartbeatUrl, {
+      connected: true,
+      position: state.position,
+      health: state.health,
+      food: state.food,
+      dimension: state.dimension,
+      players: (state.nearbyPlayers || []).map(player => player.name)
+    }, { timeout: 5000 });
+  } catch (error) {
+    console.error('Heartbeat failed:', error.message);
+  }
 }
 
 function setNavigation(target) {
@@ -155,6 +174,9 @@ function createBot() {
     console.log('Champu joined ' + host + ':' + port + ' as ' + username);
     say('Champu AI online! !champu <message> | !follow | !come | !stop | !status');
     if (thinkTimer) clearInterval(thinkTimer);
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+    heartbeatTimer = setInterval(sendHeartbeat, 5000);
+    sendHeartbeat();
     thinkTimer = setInterval(autonomousThink, thinkInterval);
   });
   bot.on('chat', async (sender, message) => {
@@ -178,6 +200,7 @@ function createBot() {
   bot.on('error', error => console.error('Minecraft error:', error.message));
   bot.on('end', () => {
     if (thinkTimer) clearInterval(thinkTimer);
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
     console.log('Disconnected; retrying in 8 seconds...');
     if (reconnectTimer) clearTimeout(reconnectTimer);
     reconnectTimer = setTimeout(createBot, 8000);
