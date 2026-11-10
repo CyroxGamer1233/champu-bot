@@ -2,8 +2,6 @@ import mineflayer from 'mineflayer';
 import pathfinderPackage from 'mineflayer-pathfinder';
 const { pathfinder, Movements, goals } = pathfinderPackage;
 import axios from 'axios';
-import prismarineViewerPackage from 'prismarine-viewer';
-const { mineflayer: mineflayerViewer } = prismarineViewerPackage;
 
 const env = (key, fallback = '') => process.env[key] || fallback;
 const host = env('MC_HOST', '127.0.0.1');
@@ -173,17 +171,28 @@ async function autonomousThink() {
   }
 }
 
+async function startViewer() {
+  try {
+    const viewerPackage = await import('prismarine-viewer');
+    const viewer = viewerPackage.default || viewerPackage;
+    const mineflayerViewer = viewer.mineflayer;
+    if (typeof mineflayerViewer !== 'function') {
+      throw new Error('prismarine-viewer mineflayer adapter is unavailable');
+    }
+    mineflayerViewer(bot, { port: viewerPort, firstPerson: true, viewDistance: 6 });
+    console.log('Live viewer available on port ' + viewerPort);
+  } catch (error) {
+    console.error('Viewer unavailable; bot will continue without live vision:', error.message);
+    say('Bot joined, but live vision is unavailable. Install canvas and restart.');
+  }
+}
+
 function createBot() {
   bot = mineflayer.createBot({ host, port, username, auth, version });
   bot.loadPlugin(pathfinder);
   bot.once('spawn', () => {
     console.log('Champu joined ' + host + ':' + port + ' as ' + username);
-    try {
-      mineflayerViewer(bot, { port: viewerPort, firstPerson: true, viewDistance: 6 });
-      console.log('Live viewer available on port ' + viewerPort);
-    } catch (error) {
-      console.error('Viewer failed to start:', error.message);
-    }
+    startViewer();
     say('Champu AI online! !champu <message> | !follow | !come | !stop | !status');
     if (thinkTimer) clearInterval(thinkTimer);
     if (heartbeatTimer) clearInterval(heartbeatTimer);
