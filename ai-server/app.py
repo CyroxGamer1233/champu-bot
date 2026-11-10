@@ -71,12 +71,27 @@ async def generate(messages):
         except Exception as e:errors.append(fn.__name__+": "+str(e)[:180])
     raise HTTPException(503,"AI provider unavailable. Start Ollama or configure CLOUD_API_KEY. "+" | ".join(errors))
 def parse(raw):
-    try:d=json.loads(raw)
-    except Exception:d={"reply":raw,"action":{"type":"none"}}
-    if not isinstance(d,dict):d={}
-    a=d.get("action") or {}; t=a.get("type","none") if isinstance(a,dict) else "none"
-    if t not in ACTIONS:t="none"
-    return {"reply":str(d.get("reply","Mujhe samajh nahi aaya."))[:1200],"action":{"type":t}}
+    text = str(raw or "").strip()
+    fence = chr(96) * 3
+    if text.startswith(fence):
+        text = text.replace(fence + "json", "", 1).replace(fence, "", 1).strip()
+    try:
+        data = json.loads(text)
+    except Exception:
+        data = {"reply": text, "action": {"type": "none"}}
+    if isinstance(data, str):
+        data = {"reply": data, "action": {"type": "none"}}
+    if not isinstance(data, dict):
+        data = {}
+    reply = data.get("reply") or data.get("message") or data.get("response") or data.get("content") or text
+    if isinstance(reply, dict):
+        reply = reply.get("text") or reply.get("content") or str(reply)
+    reply = str(reply or "AI ne empty response diya. Ollama model output check karo.").strip()
+    action = data.get("action") or {}
+    action_type = action.get("type", "none") if isinstance(action, dict) else str(action)
+    if action_type not in ACTIONS:
+        action_type = "none"
+    return {"reply": reply[:1200], "action": {"type": action_type}}
 @app.get("/")
 async def home():
     f=WEB/"index.html"
