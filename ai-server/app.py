@@ -12,7 +12,9 @@ load_dotenv(ROOT / ".env")
 WEB=ROOT/"web"
 DB=Path(os.getenv("CHAMPU_MEMORY_DB",str(ROOT/"champu_memory.sqlite3")))
 OLLAMA=os.getenv("OLLAMA_URL","http://127.0.0.1:11434").rstrip("/")
-LOCAL_MODEL=os.getenv("OLLAMA_MODEL","llama3.2:3b")
+LOCAL_MODEL=os.getenv("OLLAMA_MODEL","qwen2.5:0.5b")
+PERSONALITY=os.getenv("CHAMPU_PERSONALITY","curious, friendly, loyal, playful, and helpful")
+MAX_TOKENS=max(64,min(int(os.getenv("AI_MAX_TOKENS","180")),512))
 CLOUD_URL=os.getenv("CLOUD_BASE_URL","https://api.openai.com/v1").rstrip("/")
 CLOUD_MODEL=os.getenv("CLOUD_MODEL","gpt-4o-mini")
 API_KEY=os.getenv("CLOUD_API_KEY","")
@@ -61,14 +63,14 @@ def detect_action(message):
     return "none"
 
 def prompt(world):
-    return ("You are Champu, a friendly curious Minecraft companion character. Reply naturally in Hindi/Hinglish when the user does. "
+    return ("You are Champu, a Minecraft companion with this personality: "+PERSONALITY+". Reply naturally in Hindi/Hinglish when the user does. "
     "You are an AI, not a human; do not claim consciousness. Use only supplied facts and never invent live game observations. "
     "Standalone mode means Minecraft is disconnected and no action can execute. Never claim an action succeeded without game confirmation. "
     "Allowed action types: follow, come, stop, look, wander, jump, none. Choose a safe useful action only when justified. Return ONLY JSON with keys reply, action:{type}, and goal:{reason,priority}. "
-    "World snapshot: "+json.dumps(world,ensure_ascii=False)[:3500])
+    "Prefer a short answer (1-2 sentences). When connected, think about one safe useful next action; never invent success. " + "World snapshot: "+json.dumps(world,ensure_ascii=False)[:3500])
 async def ollama(messages):
     async with httpx.AsyncClient(timeout=httpx.Timeout(75,connect=8)) as c:
-        r=await c.post(OLLAMA+"/api/chat",json={"model":LOCAL_MODEL,"messages":messages,"stream":False,"format":"json","options":{"temperature":0.65}})
+        r=await c.post(OLLAMA+"/api/chat",json={"model":LOCAL_MODEL,"messages":messages,"stream":False,"format":"json","keep_alive":"10m","options":{"temperature":0.55,"num_ctx":2048,"num_predict":MAX_TOKENS}})
         if r.status_code >= 400:
             detail = r.text[:400].replace("\\n", " ")
             raise RuntimeError(f"Ollama HTTP {r.status_code}: {detail}")
@@ -77,7 +79,7 @@ async def ollama(messages):
 async def cloud(messages):
     if not API_KEY: raise RuntimeError("Cloud API key is not configured")
     async with httpx.AsyncClient(timeout=httpx.Timeout(75,connect=8)) as c:
-        r=await c.post(CLOUD_URL+"/chat/completions",headers={"Authorization":"Bearer "+API_KEY},json={"model":CLOUD_MODEL,"messages":messages,"temperature":0.65,"response_format":{"type":"json_object"}})
+        r=await c.post(CLOUD_URL+"/chat/completions",headers={"Authorization":"Bearer "+API_KEY},json={"model":CLOUD_MODEL,"messages":messages,"temperature":0.55,"max_tokens":MAX_TOKENS,"response_format":{"type":"json_object"}})
         r.raise_for_status(); return r.json()["choices"][0]["message"]["content"],"cloud:"+CLOUD_MODEL
 async def providers():
     result={"ollama":"offline","cloud":"configured" if API_KEY else "not_configured"}
