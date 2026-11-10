@@ -1,5 +1,6 @@
 import mineflayer from 'mineflayer';
-import { pathfinder, Movements, goals } from 'mineflayer-pathfinder';
+import pathfinderPackage from 'mineflayer-pathfinder';
+const { pathfinder, Movements, goals } = pathfinderPackage;
 import axios from 'axios';
 
 const env = (key, fallback = '') => process.env[key] || fallback;
