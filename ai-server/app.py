@@ -2,11 +2,13 @@ import json, os, sqlite3
 from pathlib import Path
 from typing import Any
 import httpx
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 ROOT=Path(__file__).resolve().parent
+load_dotenv(ROOT / ".env")
 WEB=ROOT/"web"
 DB=Path(os.getenv("CHAMPU_MEMORY_DB",str(ROOT/"champu_memory.sqlite3")))
 OLLAMA=os.getenv("OLLAMA_URL","http://127.0.0.1:11434").rstrip("/")
