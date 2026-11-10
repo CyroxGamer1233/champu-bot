@@ -13,7 +13,12 @@
 <button class="btn primary" id="mcJoin" type="submit">JOIN BOT</button>
 </form>
 <div id="mcInfo" class="tiny" style="margin-top:8px">Bot is not running.</div>
-<pre id="mcLogs" style="max-height:120px;overflow:auto;background:#080f1c;border:1px solid #30425f;border-radius:10px;padding:8px;color:#a9c4df;white-space:pre-wrap"></pre>
+<pre id="mcLogs" style="max-height:120px;overflow:auto;background:#080f1c;border:1px solid #30425f;border-radius:10px;padding:8px;color:#a9c4df;white-space:pre-wrap"></pre><div id="botVision" style="margin-top:10px;background:#0b1422;border:1px solid #30415c;border-radius:10px;padding:10px">
+<div style="display:flex;justify-content:space-between;gap:8px"><b>👁️ What Champu Sees</b><span class="tiny" id="visionMeta">Waiting for bot heartbeat…</span></div>
+<div class="tiny" id="visionState" style="margin-top:6px;color:var(--muted)">No live perception yet.</div>
+<div id="visionPlayers" style="margin-top:6px;color:#bcd3ef"></div>
+<div id="visionEntities" style="margin-top:4px;color:#a5bdd8"></div>
+</div>
 </section><section class="view active workspace" id="tab-studio"><section class="panel chat"><div class="head"><div><h2>💬 Talk to Champu</h2><div class="tiny">Hindi / Hinglish chat · saved memory</div></div><button class="btn" id="voice">🔊 Voice off</button></div><div class="messages" id="messages"><div class="empty">Champu yahin hai! Pehla message bhejo 👋</div></div><form class="composer" id="form"><button class="btn" type="button" id="mic">🎙️</button><textarea id="message" maxlength="1200" placeholder="Champu, kya kar rahe ho?" required></textarea><button class="btn primary" id="send">SEND ➤</button></form></section>
 <section class="panel preview"><div class="head"><div><h2>🧍 Bot preview</h2><div class="tiny">Animated block-character mockup</div></div><span class="tag">IDLE</span></div><div class="stage"><div class="stars"></div><div class="moon"></div><div class="ground"></div><div class="avatar"><div class="headb"><div class="eye l"></div><div class="eye r"></div></div><div class="hair"></div><div class="arm l"></div><div class="arm r"></div><div class="bodyb"><div class="badgeb"></div></div><div class="leg l"></div><div class="leg r"></div></div><div class="label">CHAMPU // CHARACTER PREVIEW</div></div><div class="infogrid"><div class="info"><small>PERSONALITY</small><b>Curious · Friendly</b></div><div class="info"><small>VOICE</small><b id="voiceState">Browser voice</b></div><div class="info"><small>GAME</small><b id="gameState">Not connected</b></div><div class="info"><small>AI</small><b id="aiState">Checking…</b></div></div><div class="foot">Visual preview only — not a live Minecraft entity or live 3D game feed.</div></section></section>
 <section class="view mind" id="tab-mind"><section class="panel"><div class="head"><div><h2>🧠 Champu AI Mind</h2><div class="tiny">Current prototype capabilities and limits</div></div><button class="btn" id="refresh">↻ Refresh</button></div></section><section class="panel"><div class="cards"><div class="card"><h3>Reasoning</h3><p id="providerInfo">Waiting for provider check…</p></div><div class="card"><h3>Memory</h3><p>Recent chat turns are stored locally in SQLite per player profile.</p></div><div class="card"><h3>World awareness</h3><p>Standalone mode has no Minecraft world data. The avatar is a visual mockup.</p></div><div class="card"><h3>Autonomy</h3><p>AI can suggest a limited action, but nothing executes while disconnected.</p></div><div class="card"><h3>Personality & voice</h3><p>Hindi/Hinglish style prompt and browser speech only. Self-evolving personality and custom voice clone are not implemented.</p></div><div class="card"><h3>Reality check</h3><p>AGI-inspired prototype, not human-level AGI or proof of consciousness.</p></div></div></section></section>
@@ -34,6 +39,16 @@ async function refreshMinecraft(){
     const live=d.live||{};
     const pos=live.position ? (' @ '+live.position.x+','+live.position.y+','+live.position.z+' · HP '+Math.round(live.health||0)) : '';
     $('mcInfo').textContent=running ? 'Connected process started for '+(d.config.host||'server')+':'+(d.config.port||'')+pos : 'Bot is not running.';
+    if(running && live.position){
+      $('visionMeta').textContent='Live heartbeat · '+(live.dimension||'unknown')+' · '+(live.weather||'unknown');
+      $('visionState').textContent='Position '+live.position.x+', '+live.position.y+', '+live.position.z+' · Health '+Math.round(live.health||0)+' · Food '+Math.round(live.food||0)+' · Time '+(live.time_of_day ?? 'unknown');
+      $('visionPlayers').textContent='Players nearby: '+((live.players||[]).join(', ')||'none');
+      $('visionEntities').textContent='Entities nearby: '+((live.nearby_entities||[]).map(entity=>entity.type+' ('+entity.distance+')').join(', ')||'none');
+    } else {
+      $('visionMeta').textContent='Waiting for bot heartbeat…';
+      $('visionState').textContent='No live perception yet.';
+      $('visionPlayers').textContent=''; $('visionEntities').textContent='';
+    }
     $('gameState').textContent=running ? (live.position ? 'Live · '+live.position.x+','+live.position.y+','+live.position.z : 'Process running') : 'Not connected';
     $('sideMcStatus').textContent=running ? 'LIVE PLAYER' : 'OFFLINE';
     $('sideMcStatus').style.color=running ? 'var(--green)' : 'var(--amber)';
