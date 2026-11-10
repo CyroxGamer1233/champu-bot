@@ -112,10 +112,14 @@ async def memory(player:str=Query(default="Owner",min_length=1,max_length=32),li
     return {"player":player,"items":[{"role":r,"content":v,"created_at":t} for r,v,t in reversed(rows)]}
 @app.post("/chat")
 async def chat(req:Chat):
-    msgs=[{"role":"system","content":prompt(req.world)}]+history(req.player)+[{"role":"user","content":req.message.strip()}]
+    state = minecraft_status()
+    world = dict(req.world)
+    world["minecraft_connected"] = state["running"]
+    world["minecraft"] = state["config"] if state["running"] else None
+    msgs=[{"role":"system","content":prompt(world)}]+history(req.player)+[{"role":"user","content":req.message.strip()}]
     raw,model=await generate(msgs); result=parse(raw)
     if req.remember:remember(req.player,"user",req.message.strip());remember(req.player,"assistant",result["reply"])
-    result.update({"model":model,"minecraft_connected":False});return result
+    result.update({"model":model,"minecraft_connected":state["running"]});return result
 @app.post("/think")
 async def think(req:Think):
     raw,model=await generate([{"role":"system","content":prompt(req.world)+" Idle reflection: choose none unless a safe useful action is clearly justified."},{"role":"user","content":"Reflect on the supplied state."}])
