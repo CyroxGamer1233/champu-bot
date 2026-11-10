@@ -67,7 +67,7 @@ def prompt(world):
     "You are an AI, not a human; do not claim consciousness. Use only supplied facts and never invent live game observations. "
     "Standalone mode means Minecraft is disconnected and no action can execute. Never claim an action succeeded without game confirmation. "
     "Allowed action types: follow, come, stop, look, wander, jump, none. Choose a safe useful action only when justified. Return ONLY JSON with keys reply, action:{type}, and goal:{reason,priority}. "
-    "Prefer a short answer (1-2 sentences). When connected, think about one safe useful next action; never invent success. " + "World snapshot: "+json.dumps(world,ensure_ascii=False)[:3500])
+    "Prefer a short answer (1-2 sentences). When connected, observe the world and choose one safe useful next action even without a user command; prefer look, wander, or jump during idle time. Never invent success. " + "World snapshot: "+json.dumps(world,ensure_ascii=False)[:3500])
 async def ollama(messages):
     async with httpx.AsyncClient(timeout=httpx.Timeout(75,connect=8)) as c:
         r=await c.post(OLLAMA+"/api/chat",json={"model":LOCAL_MODEL,"messages":messages,"stream":False,"format":"json","keep_alive":"10m","options":{"temperature":0.55,"num_ctx":2048,"num_predict":MAX_TOKENS}})
@@ -202,7 +202,7 @@ async def chat(req:Chat):
     result.update({"model":model,"minecraft_connected":state["running"]});return result
 @app.post("/think")
 async def think(req:Think):
-    raw,model=await generate([{"role":"system","content":prompt(req.world)+" Idle reflection: choose none unless a safe useful action is clearly justified."},{"role":"user","content":"Reflect on the supplied state."}])
+    raw,model=await generate([{"role":"system","content":prompt(req.world)+" Idle reflection: choose none unless a safe useful action is clearly justified."},{"role":"user","content":"Reflect on the supplied state. This is autonomous thinking, not a user command: observe, speak a short thought, and choose a safe action when useful."}])
     result=parse(raw);result["model"]=model;return result
 
 # Minecraft client lifecycle. Keep the dashboard bound to localhost or protect it
