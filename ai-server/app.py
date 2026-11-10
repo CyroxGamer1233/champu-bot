@@ -19,7 +19,7 @@ API_KEY=os.getenv("CLOUD_API_KEY","")
 MODE=os.getenv("AI_MODE","hybrid").lower()
 LIMIT=max(2,min(int(os.getenv("MAX_MEMORY","20")),100))
 app=FastAPI(title="Champu AI Brain",version="1.0.0")
-ACTIONS={"follow","come","stop","look","none"}
+ACTIONS={"follow","come","stop","look","wander","jump","none"}
 pending_actions=[]
 
 def db():
@@ -54,13 +54,17 @@ def detect_action(message):
         return "come"
     if any(word in text for word in ("look", "dekho", "meri taraf")):
         return "look"
+    if any(word in text for word in ("jump", "kood", "uchlo")):
+        return "jump"
+    if any(word in text for word in ("wander", "ghoomo", "explore", "idhar udhar")):
+        return "wander"
     return "none"
 
 def prompt(world):
     return ("You are Champu, a friendly curious Minecraft companion character. Reply naturally in Hindi/Hinglish when the user does. "
     "You are an AI, not a human; do not claim consciousness. Use only supplied facts and never invent live game observations. "
     "Standalone mode means Minecraft is disconnected and no action can execute. Never claim an action succeeded without game confirmation. "
-    "Allowed action types: follow, come, stop, look, none. Usually choose none. Return ONLY JSON with keys reply and action:{type}. "
+    "Allowed action types: follow, come, stop, look, wander, jump, none. Choose a safe useful action only when justified. Return ONLY JSON with keys reply, action:{type}, and goal:{reason,priority}. "
     "World snapshot: "+json.dumps(world,ensure_ascii=False)[:3500])
 async def ollama(messages):
     async with httpx.AsyncClient(timeout=httpx.Timeout(75,connect=8)) as c:
@@ -124,13 +128,24 @@ def parse(raw):
             "follow": "Theek hai, main tumhare saath chal raha hoon.",
             "come": "Theek hai, main tumhare paas aa raha hoon.",
             "stop": "Theek hai, main ruk gaya.",
-            "look": "Theek hai, main dekh raha hoon."
+            "look": "Theek hai, main dekh raha hoon.",
+            "wander": "Theek hai, main thoda explore kar raha hoon.",
+            "jump": "Theek hai, jump karta hoon."
         }
         reply = replies.get(action_type)
     if not reply and "minecraft_connected" in data:
         reply = "Abhi main Minecraft se connected nahi hoon. Join Bot button se server connect karo."
     reply = str(reply or "AI ne empty response diya. Ollama model output check karo.").strip()
-    return {"reply": reply[:1200], "action": {"type": action_type}}
+    goal = data.get("goal") if isinstance(data.get("goal"), dict) else {}
+    try:
+        priority = max(1, min(int(goal.get("priority", 1)), 5))
+    except (TypeError, ValueError):
+        priority = 1
+    return {
+        "reply": reply[:1200],
+        "action": {"type": action_type},
+        "goal": {"reason": str(goal.get("reason", ""))[:200], "priority": priority}
+    }
 @app.get("/")
 async def home():
     f=WEB/"index.html"
@@ -166,7 +181,9 @@ async def chat(req:Chat):
             "follow": "Theek hai, main tumhare saath chal raha hoon.",
             "come": "Theek hai, main tumhare paas aa raha hoon.",
             "stop": "Theek hai, main ruk gaya.",
-            "look": "Theek hai, main tumhari taraf dekh raha hoon."
+            "look": "Theek hai, main tumhari taraf dekh raha hoon.",
+            "wander": "Theek hai, main thoda explore kar raha hoon.",
+            "jump": "Theek hai, jump karta hoon."
         }
         result["reply"] = action_replies[requested_action]
     if state["running"]:
