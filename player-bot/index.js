@@ -16,7 +16,7 @@ const viewerPort = Number(env('VIEWER_PORT', '3007'));
 const ownerName = env('OWNER_NAME');
 const autonomous = env('AUTONOMOUS_MODE', 'true').toLowerCase() === 'true';
 const thinkInterval = Math.max(30000, Number(env('THINK_INTERVAL_MS', '60000')));
-const allowedActions = new Set(['follow', 'come', 'stop', 'look', 'wander', 'jump', 'none']);
+const allowedActions = new Set(['follow', 'come', 'stop', 'look', 'wander', 'jump', 'chop_wood', 'none']);
 
 let bot;
 let thinkTimer;
@@ -154,6 +154,29 @@ async function jump(sender) {
   setTimeout(() => bot?.entity && bot.setControlState('jump', false), 650);
 }
 
+async function chopWood(sender) {
+  if (!isOwner(sender)) return;
+  const positions = bot.findBlocks({
+    matching: block => block?.name?.endsWith('_log'),
+    maxDistance: 16,
+    count: 1
+  });
+  if (!positions.length) return say('Mujhe paas koi tree nahi dikh raha.');
+  const pos = positions[0];
+  try {
+    await bot.pathfinder.goto(new goals.GoalNear(pos.x, pos.y, pos.z, 2));
+    const block = bot.blockAt(pos);
+    if (!block || !block.name.endsWith('_log')) return say('Tree ab meri reach mein nahi hai.');
+    const axe = bot.inventory.items().find(item => item.name.endsWith('_axe'));
+    if (axe) await bot.equip(axe, 'hand');
+    await bot.dig(block, true);
+    say('Wood collect kar diya.');
+  } catch (error) {
+    console.error('Wood action failed:', error.message);
+    say('Main tree tak nahi pahunch saka.');
+  }
+}
+
 async function applyAction(action, sender, autonomousCall = false) {
   const type = action?.type;
   if (!allowedActions.has(type) || type === 'none') return;
@@ -164,6 +187,7 @@ async function applyAction(action, sender, autonomousCall = false) {
   if (type === 'stop') return stop(sender || ownerName);
   if (type === 'wander') return wander(sender || ownerName);
   if (type === 'jump') return jump(sender || ownerName);
+  if (type === 'chop_wood') return chopWood(sender || ownerName);
   if (type === 'look') {
     const target = findPlayerEntity(sender || ownerName);
     if (target) await bot.lookAt(target.position.offset(0, 1.4, 0), true);
