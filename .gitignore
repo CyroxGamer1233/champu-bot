@@ -5,3 +5,7 @@ node_modules/
 player-bot/.env
 .gradle/
 build/
+.env
+data/*
+!data/.gitkeep
+*.zip
