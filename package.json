@@ -1,0 +1,21 @@
+{
+  "name": "champu-bot",
+  "version": "0.1.0",
+  "description": "AGI-like (not true AGI) newborn-style agent for a Minecraft Java world, powered by local open-source LLMs",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node bot/index.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.0.0",
+    "express": "^4.19.2",
+    "mineflayer": "^4.23.0",
+    "mineflayer-collectblock": "^1.4.1",
+    "mineflayer-pathfinder": "^2.4.5",
+    "ws": "^8.18.0"
+  }
+}
+
