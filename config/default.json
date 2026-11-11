@@ -1,10 +1,39 @@
 {
-  "minecraft": { "host": "127.0.0.1", "port": 25565, "username": "Champu", "version": "1.21.1", "auth": "offline" },
-  "llm": { "baseUrl": "http://localhost:11434", "model": "llama3.2:3b", "embeddingModel": "nomic-embed-text", "temperature": 0.7, "contextLength": 4096, "timeoutMs": 60000 },
-  "loop": { "minSecondsBetweenThoughts": 4, "maxLlmCallsPerMinute": 20, "maxTokensPerCall": 200, "maxActionSeconds": 20, "maxActionsPerMinute": 30, "maxChatPerMinute": 6 },
-  "memory": { "dbFile": "data/champu.sqlite", "reflectEvery": 50 },
-  "dashboard": { "port": 3000, "bindAddress": "127.0.0.1" },
+  "minecraft": {
+    "host": "127.0.0.1",
+    "port": 25565,
+    "username": "Champu",
+    "version": "1.21.1",
+    "auth": "offline"
+  },
+  "llm": {
+    "baseUrl": "http://localhost:11434",
+    "model": "qwen2.5:0.5b",
+    "embeddingModel": "nomic-embed-text",
+    "temperature": 0.7,
+    "contextLength": 4096,
+    "timeoutMs": 60000
+  },
+  "loop": {
+    "minSecondsBetweenThoughts": 4,
+    "maxLlmCallsPerMinute": 20,
+    "maxTokensPerCall": 200,
+    "maxActionSeconds": 20,
+    "maxActionsPerMinute": 30,
+    "maxChatPerMinute": 6
+  },
+  "memory": {
+    "dbFile": "data/champu.sqlite",
+    "reflectEvery": 50
+  },
+  "dashboard": {
+    "port": 3000,
+    "bindAddress": "127.0.0.1"
+  },
   "owners": [],
-  "features": { "pvp": false, "grief": false, "learnedSkills": false }
+  "features": {
+    "pvp": false,
+    "grief": false,
+    "learnedSkills": false
+  }
 }
-
